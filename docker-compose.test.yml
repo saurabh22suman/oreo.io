@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # Test PostgreSQL Database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: oreo_postgres_test
+    environment:
+      POSTGRES_DB: oreo_test_db
+      POSTGRES_USER: oreo_test_user
+      POSTGRES_PASSWORD: oreo_test_password
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - oreo_test_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oreo_test_user -d oreo_test_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Test Redis
+  redis-test:
+    image: redis:7-alpine
+    container_name: oreo_redis_test
+    ports:
+      - "6380:6379"
+    tmpfs:
+      - /data
+    networks:
+      - oreo_test_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Test Runner
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    container_name: oreo_backend_test
+    environment:
+      - TEST_DB_HOST=postgres-test
+      - TEST_DB_PORT=5432
+      - TEST_DB_USER=oreo_test_user
+      - TEST_DB_PASSWORD=oreo_test_password
+      - TEST_DB_NAME=oreo_test_db
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+      - ENVIRONMENT=test
+      - GIN_MODE=test
+    volumes:
+      - ./backend:/app
+      - ./coverage:/app/coverage
+    networks:
+      - oreo_test_network
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for dependencies...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        go run cmd/migrate/main.go up &&
+        echo 'Running tests...' &&
+        go test -v -race -coverprofile=coverage/coverage.out ./... &&
+        go tool cover -html=coverage/coverage.out -o coverage/coverage.html &&
+        echo 'Tests completed!'
+      "
+
+  # Frontend Test Runner
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    container_name: oreo_frontend_test
+    environment:
+      - CI=true
+      - REACT_APP_API_URL=http://backend-test:8080/api/v1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - ./coverage:/app/coverage
+    networks:
+      - oreo_test_network
+    command: >
+      sh -c "
+        echo 'Running frontend tests...' &&
+        npm test -- --coverage --watchAll=false &&
+        echo 'Frontend tests completed!'
+      "
+
+  # E2E Test Runner (Cypress)
+  e2e-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.e2e
+    container_name: oreo_e2e_test
+    environment:
+      - CYPRESS_baseUrl=http://frontend:3000
+      - CYPRESS_apiUrl=http://backend:8080/api/v1
+    volumes:
+      - ./frontend/cypress:/app/cypress
+      - ./frontend/cypress.config.js:/app/cypress.config.js
+      - ./coverage:/app/coverage
+    networks:
+      - oreo_test_network
+    depends_on:
+      - postgres-test
+      - redis-test
+    command: >
+      sh -c "
+        echo 'Waiting for application to be ready...' &&
+        sleep 30 &&
+        echo 'Running E2E tests...' &&
+        npx cypress run &&
+        echo 'E2E tests completed!'
+      "
+
+networks:
+  oreo_test_network:
+    driver: bridge

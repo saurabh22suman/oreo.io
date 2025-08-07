@@ -111,3 +111,41 @@
 2. **Defines schema** → Sets business rules → Invites users.
 3. **Users edit data** → Some edits require approval.
 4. **Data validated & approved** → Exported to SQL DB or saved to Drive.
+
+---
+
+### 🚀 **Deployment Strategy**
+
+#### **Environment Configuration**
+- **Development**: Local Docker setup with hot reload
+- **Staging**: staging.soloengine.in (Auto-deploy from `develop` branch)
+- **Production**: prod.soloengine.in (Manual approval from `main` branch)
+- **API**: api.soloengine.in (Versioned API endpoints)
+
+#### **Infrastructure**
+- **VPS**: 2 CPU, 2GB RAM, 30GB Storage
+- **SSL**: Let's Encrypt wildcard (*.soloengine.in)
+- **Database**: PostgreSQL with Redis caching
+- **CI/CD**: GitHub Actions with strict deployment pipelines
+- **Compliance**: GDPR-ready with audit logging
+
+#### **Development Setup**
+```bash
+# Clone and setup
+git clone https://github.com/saurabh22suman/oreo.io.git
+cd oreo.io
+
+# Start development environment
+docker-compose up -d
+
+# Access application
+Frontend: http://localhost:3000
+Backend: http://localhost:8080
+Database: localhost:5432
+```
+
+#### **Testing Strategy**
+- **TDD Approach**: Write tests first, then implementation
+- **Coverage**: Minimum 80% test coverage
+- **E2E Testing**: Cypress for critical user flows
+- **Performance**: 100K rows handling validation

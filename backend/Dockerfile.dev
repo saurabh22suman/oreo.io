@@ -1,0 +1,29 @@
+# Development Dockerfile for Go backend
+FROM golang:1.21-alpine AS development
+
+# Install air for hot reloading
+RUN go install github.com/cosmtrek/air@latest
+
+# Install migrate tool
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p tmp logs uploads
+
+# Expose port
+EXPOSE 8080
+
+# Run with air for hot reloading
+CMD ["air", "-c", ".air.toml"]

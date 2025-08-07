@@ -1,0 +1,168 @@
+# Oreo.io - Data Management Platform Requirements
+
+## Backend Dependencies (Go)
+
+### Core Framework & HTTP
+github.com/gin-gonic/gin v1.9.1                    # HTTP web framework
+github.com/gin-contrib/cors v1.4.0                 # CORS middleware
+
+### Authentication & Security
+github.com/golang-jwt/jwt/v4 v4.5.0               # JWT token handling
+golang.org/x/crypto v0.10.0                       # Password hashing
+golang.org/x/oauth2 v0.8.0                        # OAuth2 implementation
+google.golang.org/api v0.126.0                    # Google APIs
+
+### Database & Caching
+github.com/lib/pq v1.10.9                         # PostgreSQL driver
+github.com/golang-migrate/migrate/v4 v4.16.2      # Database migrations
+github.com/go-redis/redis/v8 v8.11.5              # Redis client
+github.com/jmoiron/sqlx v1.3.5                    # SQL extensions
+
+### Validation & Configuration
+github.com/go-playground/validator/v10 v10.14.0   # Input validation
+github.com/joho/godotenv v1.5.1                   # Environment variables
+github.com/google/uuid v1.3.0                     # UUID generation
+
+### File Processing
+github.com/xuri/excelize/v2 v2.7.1               # Excel file processing
+encoding/csv                                       # CSV processing (built-in)
+
+### Testing Framework
+github.com/stretchr/testify v1.8.4                # Testing toolkit
+github.com/golang/mock v1.6.0                     # Mock generation
+github.com/DATA-DOG/go-sqlmock v1.5.0            # SQL mocking
+github.com/testcontainers/testcontainers-go v0.20.1 # Integration testing
+
+### Development Tools
+github.com/cosmtrek/air v1.44.0                   # Hot reload
+github.com/swaggo/gin-swagger v1.6.0              # API documentation
+
+## Frontend Dependencies (Node.js)
+
+### Core Framework
+react@18.2.0                                      # React framework
+typescript@5.0.0                                  # TypeScript
+@types/react@18.2.0                               # React types
+@types/node@20.0.0                                # Node types
+
+### UI & Styling
+tailwindcss@3.3.0                                 # CSS framework
+@headlessui/react@1.7.0                           # Accessible UI components
+@heroicons/react@2.0.0                            # Icon library
+react-hot-toast@2.4.0                             # Toast notifications
+
+### Routing & State Management
+react-router-dom@6.11.0                           # Client-side routing
+@tanstack/react-query@4.29.0                      # Server state management
+zustand@4.3.0                                     # Client state management
+
+### HTTP & API
+axios@1.4.0                                       # HTTP client
+@types/axios@0.14.0                               # Axios types
+
+### Data Grid & Forms
+@tanstack/react-table@8.9.0                       # Data grid
+react-hook-form@7.44.0                            # Form handling
+@hookform/resolvers@3.1.0                         # Form validation
+
+### File Handling
+react-dropzone@14.2.0                             # File upload
+papaparse@5.4.0                                   # CSV parsing
+@types/papaparse@5.3.0                            # CSV parsing types
+
+### Testing Framework
+@testing-library/react@13.4.0                     # React testing utilities
+@testing-library/jest-dom@5.16.5                  # Jest DOM matchers
+@testing-library/user-event@14.4.3                # User interaction testing
+jest@29.5.0                                       # Testing framework
+cypress@12.17.0                                   # E2E testing
+
+### Development Tools
+vite@4.3.0                                        # Build tool
+@vitejs/plugin-react@4.0.0                        # React plugin for Vite
+eslint@8.42.0                                     # Linting
+prettier@2.8.8                                    # Code formatting
+husky@8.0.3                                       # Git hooks
+
+## Infrastructure & DevOps
+
+### Containerization
+docker@24.0.0                                     # Containerization
+docker-compose@2.18.0                             # Multi-container orchestration
+
+### Database
+postgresql@15                                      # Database server
+redis@7                                           # Caching & sessions
+
+### Web Server
+nginx@1.24                                        # Reverse proxy & static files
+
+### SSL/TLS
+certbot                                           # Let's Encrypt client
+
+### Monitoring (Optional)
+prometheus                                        # Metrics collection
+grafana                                          # Metrics visualization
+
+## Development Environment Requirements
+
+### Local Development
+- Node.js 18+
+- Go 1.20+
+- Docker Desktop
+- Git
+- VS Code (recommended)
+
+### VPS Requirements (Production/Staging)
+- Ubuntu 22.04 LTS
+- 2 CPU cores
+- 2GB RAM
+- 30GB Storage
+- Docker & Docker Compose
+
+### Domain & SSL
+- soloengine.in domain
+- DNS configuration for subdomains
+- Let's Encrypt wildcard certificate
+
+## Security Requirements
+
+### Authentication
+- JWT with refresh tokens
+- Google OAuth 2.0
+- Password hashing (bcrypt)
+- Rate limiting
+
+### Data Protection
+- TLS 1.3 encryption
+- Database encryption at rest
+- Input sanitization
+- SQL injection prevention
+- XSS protection
+
+### GDPR Compliance
+- User consent management
+- Data export functionality
+- Right to deletion
+- Audit logging
+- Data processing records
+
+## Performance Requirements
+
+### Backend
+- Handle 100K rows per dataset
+- Response time <200ms for API calls
+- Database connection pooling
+- Redis caching
+
+### Frontend
+- Virtual scrolling for large datasets
+- Lazy loading
+- Optimistic UI updates
+- Auto-save functionality
+
+### Database
+- Indexed queries
+- Optimized for reads and writes
+- Backup and recovery
+- Point-in-time recovery

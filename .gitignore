@@ -1,0 +1,80 @@
+# OS and IDE files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.staging
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+/backend/tmp/
+/backend/coverage/
+/frontend/build/
+/frontend/dist/
+/frontend/.next/
+
+# Database
+*.sqlite
+*.db
+
+# Uploads and temporary files
+uploads/
+temp/
+tmp/
+
+# Backup files
+backups/
+*.backup
+
+# Go specific
+/backend/go.sum
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Frontend specific
+.turbo/
+.vercel/
+.next/
+coverage/
+
+# Docker volumes
+postgres_data/
+redis_data/
+
+# Certificates
+*.pem
+*.key
+*.crt
+
+# Google credentials
+google-credentials.json
+google-service-account.json
