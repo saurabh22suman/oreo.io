@@ -157,7 +157,7 @@ func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 				})
 				return
 			}
-			
+
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Failed to register user",
 			})
@@ -198,7 +198,7 @@ func (h *AuthHandlers) LoginWithService() gin.HandlerFunc {
 				})
 				return
 			}
-			
+
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Failed to authenticate user",
 			})
@@ -234,7 +234,7 @@ func (h *AuthHandlers) RefreshTokenWithService() gin.HandlerFunc {
 				})
 				return
 			}
-			
+
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Failed to refresh token",
 			})

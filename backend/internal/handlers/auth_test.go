@@ -17,7 +17,7 @@ func TestAuthHandlers_Register(t *testing.T) {
 
 	t.Run("successful registration", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Implement with mock service
 		// router := gin.New()
 		// mockService := &MockAuthService{}
@@ -75,13 +75,13 @@ func TestAuthHandlers_Login(t *testing.T) {
 
 	t.Run("successful login", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Test successful login
 	})
 
 	t.Run("invalid credentials", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Test invalid credentials
 	})
 
@@ -103,13 +103,13 @@ func TestAuthHandlers_RefreshToken(t *testing.T) {
 
 	t.Run("valid refresh token", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Test valid refresh token
 	})
 
 	t.Run("invalid refresh token", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Test invalid refresh token
 	})
 
@@ -131,7 +131,7 @@ func TestAuthHandlers_GetCurrentUser(t *testing.T) {
 
 	t.Run("valid user context", func(t *testing.T) {
 		t.Skip("Integration test - requires service setup")
-		
+
 		// TODO: Test with valid user in context
 	})
 
