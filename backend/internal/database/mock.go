@@ -55,7 +55,7 @@ func NewConnectionWithFallback() (interface{}, error) {
 		log.Println("Using mock database for development")
 		return &MockDB{connected: true}, nil
 	}
-	
+
 	// Try actual database connection
 	db, err := NewConnection()
 	if err != nil {
@@ -63,7 +63,7 @@ func NewConnectionWithFallback() (interface{}, error) {
 		log.Println("Falling back to mock database for development")
 		return &MockDB{connected: true}, nil
 	}
-	
+
 	return db, nil
 }
 
@@ -73,7 +73,7 @@ func NewRedisConnectionWithFallback() (interface{}, error) {
 		log.Println("Using mock Redis for development")
 		return &MockRedis{connected: true}, nil
 	}
-	
+
 	// Try actual Redis connection
 	redis, err := NewRedisConnection()
 	if err != nil {
@@ -81,6 +81,6 @@ func NewRedisConnectionWithFallback() (interface{}, error) {
 		log.Println("Falling back to mock Redis for development")
 		return &MockRedis{connected: true}, nil
 	}
-	
+
 	return redis, nil
 }
