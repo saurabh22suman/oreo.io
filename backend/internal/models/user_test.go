@@ -101,7 +101,7 @@ func TestUser_HashPassword(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotEqual(t, "plaintext123", user.Password)
-	assert.True(t, len(user.Password) > 50) // bcrypt hashes are long
+	assert.True(t, len(user.Password) > 50)   // bcrypt hashes are long
 	assert.Contains(t, user.Password, "$2a$") // bcrypt prefix
 }
 

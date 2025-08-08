@@ -37,7 +37,7 @@ type JWTService struct {
 
 // NewJWTService creates a new JWT service
 func NewJWTService(secretKey string) *JWTService {
-	accessDuration := 15 * time.Minute // Default 15 minutes
+	accessDuration := 15 * time.Minute    // Default 15 minutes
 	refreshDuration := 7 * 24 * time.Hour // Default 7 days
 
 	// Parse durations from environment if available
