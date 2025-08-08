@@ -43,7 +43,7 @@ func HealthCheck(db *sql.DB, rdb *redis.Client) gin.HandlerFunc {
 
 		// Check database
 		dbStatus := checkDatabase(db)
-		
+
 		// Check Redis
 		redisStatus := checkRedis(rdb)
 
@@ -81,7 +81,7 @@ func DatabaseHealthCheck(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		status := checkDatabase(db)
-		
+
 		statusCode := http.StatusOK
 		if status.Status != "healthy" {
 			statusCode = http.StatusServiceUnavailable
@@ -97,7 +97,7 @@ func RedisHealthCheck(rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		status := checkRedis(rdb)
-		
+
 		statusCode := http.StatusOK
 		if status.Status != "healthy" {
 			statusCode = http.StatusServiceUnavailable
@@ -111,13 +111,13 @@ func RedisHealthCheck(rdb *redis.Client) gin.HandlerFunc {
 // checkDatabase performs database health check
 func checkDatabase(db *sql.DB) DatabaseStatus {
 	start := time.Now()
-	
+
 	if db == nil {
 		return DatabaseStatus{
 			Status: "unhealthy",
 		}
 	}
-	
+
 	if err := db.Ping(); err != nil {
 		return DatabaseStatus{
 			Status: "unhealthy",
@@ -141,15 +141,15 @@ func checkDatabase(db *sql.DB) DatabaseStatus {
 // checkRedis performs Redis health check
 func checkRedis(rdb *redis.Client) RedisStatus {
 	start := time.Now()
-	
+
 	if rdb == nil {
 		return RedisStatus{
 			Status: "unhealthy",
 		}
 	}
-	
+
 	ctx := context.Background()
-	
+
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		return RedisStatus{
 			Status: "unhealthy",

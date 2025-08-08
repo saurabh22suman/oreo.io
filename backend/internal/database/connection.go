@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 // NewConnection creates a new PostgreSQL database connection
