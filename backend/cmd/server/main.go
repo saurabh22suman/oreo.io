@@ -51,7 +51,7 @@ func main() {
 
 	// Initialize services
 	var userRepo repository.UserRepository
-	
+
 	// Check if we're using mock services
 	if os.Getenv("USE_MOCK_DB") == "true" {
 		userRepo = repository.NewMockUserRepository()
@@ -63,10 +63,10 @@ func main() {
 		}
 		userRepo = repository.NewUserRepository(db)
 	}
-	
+
 	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"))
 	authService := services.NewAuthService(userRepo, jwtService)
-	authHandlers := handlers.NewAuthHandlers(authService)	// Set Gin mode based on environment
+	authHandlers := handlers.NewAuthHandlers(authService) // Set Gin mode based on environment
 	if os.Getenv("ENVIRONMENT") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}

@@ -64,12 +64,20 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 		INSERT INTO users (id, email, name, password_hash, google_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
+	// Use NULL for empty google_id to avoid unique constraint conflicts
+	var googleID interface{}
+	if user.GoogleID == "" {
+		googleID = nil
+	} else {
+		googleID = user.GoogleID
+	}
+
 	_, err = r.db.ExecContext(ctx, query,
 		user.ID,
 		user.Email,
 		user.Name,
 		user.Password,
-		user.GoogleID,
+		googleID,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -89,12 +97,13 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		WHERE id = $1`
 
 	user := &models.User{}
+	var googleID sql.NullString
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
 		&user.Password,
-		&user.GoogleID,
+		&googleID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -105,6 +114,9 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		}
 		return nil, fmt.Errorf("failed to get user by ID: %w", err)
 	}
+
+	// Handle NULL google_id
+	user.GoogleID = googleID.String
 
 	return user, nil
 }
@@ -117,12 +129,13 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 		WHERE email = $1`
 
 	user := &models.User{}
+	var googleID sql.NullString
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
 		&user.Password,
-		&user.GoogleID,
+		&googleID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -133,6 +146,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 		}
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
+
+	// Handle NULL google_id
+	user.GoogleID = googleID.String
 
 	return user, nil
 }
@@ -145,12 +161,13 @@ func (r *userRepository) GetByGoogleID(ctx context.Context, googleID string) (*m
 		WHERE google_id = $1`
 
 	user := &models.User{}
+	var googleIDCol sql.NullString
 	err := r.db.QueryRowContext(ctx, query, googleID).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
 		&user.Password,
-		&user.GoogleID,
+		&googleIDCol,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -161,6 +178,9 @@ func (r *userRepository) GetByGoogleID(ctx context.Context, googleID string) (*m
 		}
 		return nil, fmt.Errorf("failed to get user by Google ID: %w", err)
 	}
+
+	// Handle NULL google_id
+	user.GoogleID = googleIDCol.String
 
 	return user, nil
 }
@@ -182,12 +202,20 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 		SET email = $2, name = $3, password_hash = $4, google_id = $5, updated_at = $6
 		WHERE id = $1`
 
+	// Use NULL for empty google_id to avoid unique constraint conflicts
+	var googleID interface{}
+	if user.GoogleID == "" {
+		googleID = nil
+	} else {
+		googleID = user.GoogleID
+	}
+
 	result, err := r.db.ExecContext(ctx, query,
 		user.ID,
 		user.Email,
 		user.Name,
 		user.Password,
-		user.GoogleID,
+		googleID,
 		user.UpdatedAt,
 	)
 
@@ -254,18 +282,21 @@ func (r *userRepository) List(ctx context.Context, offset, limit int) ([]*models
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
+		var googleID sql.NullString
 		err := rows.Scan(
 			&user.ID,
 			&user.Email,
 			&user.Name,
 			&user.Password,
-			&user.GoogleID,
+			&googleID,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
 		}
+		// Handle NULL google_id
+		user.GoogleID = googleID.String
 		users = append(users, user)
 	}
 

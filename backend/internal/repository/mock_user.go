@@ -10,7 +10,7 @@ import (
 
 // mockUserRepository implements UserRepository interface for development
 type mockUserRepository struct {
-	users map[string]*models.User  // email -> user
+	users map[string]*models.User // email -> user
 	mu    sync.RWMutex
 }
 

@@ -1,0 +1,128 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: oreo-postgres-staging
+    environment:
+      POSTGRES_DB: ${STAGING_DB_NAME}
+      POSTGRES_USER: ${STAGING_DB_USER}
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+      - ./backup:/backup
+    networks:
+      - oreo-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_DB_USER} -d ${STAGING_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: oreo-redis-staging
+    command: redis-server --appendonly yes --requirepass ${STAGING_REDIS_PASSWORD}
+    volumes:
+      - redis_staging_data:/data
+    networks:
+      - oreo-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${STAGING_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: oreo-backend-staging
+    environment:
+      - PORT=8080
+      - ENVIRONMENT=staging
+      - USE_MOCK_DB=false
+      - USE_MOCK_REDIS=false
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${STAGING_DB_USER}
+      - DATABASE_PASSWORD=${STAGING_DB_PASSWORD}
+      - DATABASE_NAME=${STAGING_DB_NAME}
+      - DATABASE_URL=postgres://${STAGING_DB_USER}:${STAGING_DB_PASSWORD}@postgres:5432/${STAGING_DB_NAME}?sslmode=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${STAGING_REDIS_PASSWORD}
+      - REDIS_URL=redis://:${STAGING_REDIS_PASSWORD}@redis:6379/0
+      - JWT_SECRET=${STAGING_JWT_SECRET}
+      - JWT_ACCESS_EXPIRY=15m
+      - JWT_REFRESH_EXPIRY=168h
+      - FRONTEND_URL=https://staging.soloengine.in
+      - RATE_LIMIT_REQUESTS=50
+      - RATE_LIMIT_WINDOW=1m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - oreo-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: oreo-frontend-staging
+    environment:
+      - VITE_API_URL=https://api.soloengine.in/staging
+      - VITE_ENVIRONMENT=staging
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - oreo-network
+    restart: always
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: oreo-nginx-staging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/staging.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - oreo-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_staging_data:
+    driver: local
+  redis_staging_data:
+    driver: local
+
+networks:
+  oreo-network:
+    driver: bridge
