@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 	"github.com/saurabh22suman/oreo.io/internal/auth"
 	"github.com/saurabh22suman/oreo.io/internal/database"
@@ -22,21 +22,22 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Error loading .env file: %v", err)
+	// Load environment variables only if not in Docker
+	// In Docker, environment variables are set by docker-compose
+	if os.Getenv("DB_HOST") == "" {
+		if err := godotenv.Load(); err != nil {
+			log.Printf("Warning: Error loading .env file: %v", err)
+		}
+	} else {
+		log.Println("Running in Docker - using environment variables from docker-compose")
 	}
 
-	// Initialize database connection with fallback to mock
-	dbConn, err := database.NewConnectionWithFallback()
+	// Initialize database connection - force real DB for projects functionality
+	dbConn, err := database.NewConnection()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer func() {
-		if closer, ok := dbConn.(interface{ Close() error }); ok {
-			closer.Close()
-		}
-	}()
+	defer dbConn.Close()
 
 	// Initialize Redis connection with fallback to mock
 	redisConn, err := database.NewRedisConnectionWithFallback()
@@ -49,30 +50,32 @@ func main() {
 		}
 	}()
 
-	// Initialize services
-	var userRepo repository.UserRepository
+	// Initialize services with real database
+	log.Println("Using real database for all operations")
 
-	// Check if we're using mock services
-	if os.Getenv("USE_MOCK_DB") == "true" {
-		userRepo = repository.NewMockUserRepository()
-	} else {
-		// Type assertion for database connection
-		db, ok := dbConn.(*sql.DB)
-		if !ok {
-			log.Fatal("Database connection is not a *sql.DB")
-		}
-		userRepo = repository.NewUserRepository(db)
+	// Create sqlx DB wrapper for project handlers
+	sqlxDB := sqlx.NewDb(dbConn, "postgres")
+
+	userRepo := repository.NewUserRepository(dbConn)
+	projectHandlers := handlers.NewProjectHandlers(sqlxDB)
+	log.Printf("Project handlers initialized: %+v", projectHandlers)
+	if projectHandlers == nil {
+		log.Fatal("Project handlers is nil!")
 	}
 
 	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"))
 	authService := services.NewAuthService(userRepo, jwtService)
-	authHandlers := handlers.NewAuthHandlers(authService) // Set Gin mode based on environment
+	authHandlers := handlers.NewAuthHandlers(authService)
+	sampleDataHandlers := handlers.NewSampleDataHandlers() // Set Gin mode based on environment
 	if os.Getenv("ENVIRONMENT") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// Initialize Gin router
 	router := gin.New()
+
+	// Set max multipart memory to 50MB (default is 32MB)
+	router.MaxMultipartMemory = 50 << 20 // 50MB
 
 	// Middleware
 	router.Use(gin.Logger())
@@ -114,27 +117,47 @@ func main() {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Authentication routes will be added here
+		// Sample data routes (public)
+		sampleData := v1.Group("/sample-data")
+		{
+			sampleData.GET("", sampleDataHandlers.ListSampleDatasets)
+			sampleData.GET("/:category/:filename/info", sampleDataHandlers.GetSampleDatasetInfo)
+			sampleData.GET("/:category/:filename/download", sampleDataHandlers.DownloadSampleDataset)
+			sampleData.GET("/:category/:filename/preview", sampleDataHandlers.PreviewSampleDataset)
+		}
+
+		// Authentication routes
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandlers.RegisterWithService())
 			auth.POST("/login", authHandlers.LoginWithService())
 			auth.POST("/logout", handlers.Logout())
-			auth.GET("/me", middleware.RequireAuth(), handlers.GetCurrentUser())
+			auth.GET("/me", middleware.RequireAuthWithService(authService), handlers.GetCurrentUser())
 		}
 
-		// Protected routes will be added here
+		// Protected routes
 		protected := v1.Group("")
-		protected.Use(middleware.RequireAuth())
+		protected.Use(middleware.RequireAuthWithService(authService))
 		{
 			// Project routes
+			log.Printf("Registering project routes with handlers: %+v", projectHandlers)
 			projects := protected.Group("/projects")
 			{
-				projects.GET("", handlers.GetProjects())
-				projects.POST("", handlers.CreateProject())
-				projects.GET("/:id", handlers.GetProject())
-				projects.PUT("/:id", handlers.UpdateProject())
-				projects.DELETE("/:id", handlers.DeleteProject())
+				projects.GET("", projectHandlers.GetProjects())
+				projects.POST("", projectHandlers.CreateProject())
+				projects.GET("/:id", projectHandlers.GetProject())
+				projects.PUT("/:id", projectHandlers.UpdateProject())
+				projects.DELETE("/:id", projectHandlers.DeleteProject())
+			}
+
+			// Dataset routes
+			datasetHandlers := handlers.NewDatasetHandlers(sqlxDB)
+			datasets := protected.Group("/datasets")
+			{
+				datasets.POST("/upload", datasetHandlers.UploadDataset())
+				datasets.GET("/user", datasetHandlers.GetUserDatasets())
+				datasets.GET("/project/:project_id", datasetHandlers.GetDatasets())
+				datasets.DELETE("/:id", datasetHandlers.DeleteDataset())
 			}
 		}
 	}

@@ -25,16 +25,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check if user is already logged in
     const token = localStorage.getItem('accessToken');
     if (token) {
+      console.log('Token found, calling getCurrentUser');
+      
       authService
         .getCurrentUser()
         .then((userData) => {
           setUser(userData);
+          setLoading(false);
         })
-        .catch(() => {
+        .catch((error) => {
+          console.log('getCurrentUser failed:', error);
+          // Clear invalid tokens
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
-        })
-        .finally(() => {
+          setUser(null);
           setLoading(false);
         });
     } else {

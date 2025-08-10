@@ -1,0 +1,14 @@
+# Mixed and Testing Data Samples
+
+This directory will contain complex datasets designed for testing edge cases and performance.
+
+## Planned Datasets
+
+- **large_dataset.csv**: Large dataset for performance testing (1M+ rows)
+- **special_characters.csv**: Data with special characters and unicode
+- **validation_test.csv**: Data designed to test validation rules
+- **malformed_data.csv**: Intentionally malformed data for error handling tests
+
+## Status: Pending
+
+These datasets will be added to support comprehensive testing of data handling capabilities.

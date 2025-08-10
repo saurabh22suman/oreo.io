@@ -1,0 +1,14 @@
+# Financial Data Samples
+
+This directory will contain financial and business-related sample datasets.
+
+## Planned Datasets
+
+- **revenue.csv**: Revenue streams and financial performance
+- **expenses.csv**: Business expenses and cost analysis
+- **transactions.csv**: Financial transaction records
+- **budget.csv**: Budget planning and allocation data
+
+## Status: Pending
+
+These datasets will be added to support financial analytics and business intelligence features.
