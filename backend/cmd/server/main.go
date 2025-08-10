@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -12,9 +13,12 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/saurabh22suman/oreo.io/internal/auth"
 	"github.com/saurabh22suman/oreo.io/internal/database"
 	"github.com/saurabh22suman/oreo.io/internal/handlers"
 	"github.com/saurabh22suman/oreo.io/internal/middleware"
+	"github.com/saurabh22suman/oreo.io/internal/repository"
+	"github.com/saurabh22suman/oreo.io/internal/services"
 )
 
 func main() {
@@ -45,7 +49,24 @@ func main() {
 		}
 	}()
 
-	// Set Gin mode based on environment
+	// Initialize services
+	var userRepo repository.UserRepository
+	
+	// Check if we're using mock services
+	if os.Getenv("USE_MOCK_DB") == "true" {
+		userRepo = repository.NewMockUserRepository()
+	} else {
+		// Type assertion for database connection
+		db, ok := dbConn.(*sql.DB)
+		if !ok {
+			log.Fatal("Database connection is not a *sql.DB")
+		}
+		userRepo = repository.NewUserRepository(db)
+	}
+	
+	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"))
+	authService := services.NewAuthService(userRepo, jwtService)
+	authHandlers := handlers.NewAuthHandlers(authService)	// Set Gin mode based on environment
 	if os.Getenv("ENVIRONMENT") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -57,7 +78,7 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{os.Getenv("FRONTEND_URL")},
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -96,8 +117,8 @@ func main() {
 		// Authentication routes will be added here
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register", handlers.Register())
-			auth.POST("/login", handlers.Login())
+			auth.POST("/register", authHandlers.RegisterWithService())
+			auth.POST("/login", authHandlers.LoginWithService())
 			auth.POST("/logout", handlers.Logout())
 			auth.GET("/me", middleware.RequireAuth(), handlers.GetCurrentUser())
 		}

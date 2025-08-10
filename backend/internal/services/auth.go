@@ -69,7 +69,7 @@ func (s *authService) Register(ctx context.Context, req *models.CreateUserReques
 	}
 
 	// Generate tokens
-	accessToken, refreshToken, err := s.jwtService.GenerateTokenPair(user.ID)
+	tokenPair, err := s.jwtService.GenerateTokenPair(user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
@@ -77,8 +77,8 @@ func (s *authService) Register(ctx context.Context, req *models.CreateUserReques
 	return &AuthResponse{
 		User: user.PublicUser(),
 		Tokens: TokenPair{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
+			AccessToken:  tokenPair.AccessToken,
+			RefreshToken: tokenPair.RefreshToken,
 		},
 	}, nil
 }
@@ -100,7 +100,7 @@ func (s *authService) Login(ctx context.Context, req *models.LoginRequest) (*Aut
 	}
 
 	// Generate tokens
-	accessToken, refreshToken, err := s.jwtService.GenerateTokenPair(user.ID)
+	tokenPair, err := s.jwtService.GenerateTokenPair(user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
@@ -108,8 +108,8 @@ func (s *authService) Login(ctx context.Context, req *models.LoginRequest) (*Aut
 	return &AuthResponse{
 		User: user.PublicUser(),
 		Tokens: TokenPair{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
+			AccessToken:  tokenPair.AccessToken,
+			RefreshToken: tokenPair.RefreshToken,
 		},
 	}, nil
 }
@@ -117,12 +117,12 @@ func (s *authService) Login(ctx context.Context, req *models.LoginRequest) (*Aut
 // RefreshToken generates a new access token from a refresh token
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (string, error) {
 	// Validate refresh token and get new access token
-	accessToken, err := s.jwtService.RefreshAccessToken(refreshToken)
+	tokenPair, err := s.jwtService.RefreshAccessToken(refreshToken)
 	if err != nil {
 		return "", fmt.Errorf("failed to refresh token: %w", err)
 	}
 
-	return accessToken, nil
+	return tokenPair.AccessToken, nil
 }
 
 // GetUserFromToken retrieves a user from an access token

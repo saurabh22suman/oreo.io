@@ -28,15 +28,28 @@ func (c *JWTClaims) Valid() error {
 	return c.RegisteredClaims.Valid()
 }
 
-// JWTService handles JWT token operations
-type JWTService struct {
+// JWTService interface defines JWT operations
+type JWTService interface {
+	GenerateTokenPair(userID uuid.UUID) (*TokenPair, error)
+	ValidateAccessToken(token string) (*JWTClaims, error)
+	RefreshAccessToken(refreshToken string) (*TokenPair, error)
+}
+
+// TokenPair represents a pair of access and refresh tokens
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// jwtServiceImpl implements JWTService
+type jwtServiceImpl struct {
 	secretKey            []byte
 	accessTokenDuration  time.Duration
 	refreshTokenDuration time.Duration
 }
 
 // NewJWTService creates a new JWT service
-func NewJWTService(secretKey string) *JWTService {
+func NewJWTService(secretKey string) JWTService {
 	accessDuration := 15 * time.Minute    // Default 15 minutes
 	refreshDuration := 7 * 24 * time.Hour // Default 7 days
 
@@ -53,7 +66,7 @@ func NewJWTService(secretKey string) *JWTService {
 		}
 	}
 
-	return &JWTService{
+	return &jwtServiceImpl{
 		secretKey:            []byte(secretKey),
 		accessTokenDuration:  accessDuration,
 		refreshTokenDuration: refreshDuration,
@@ -61,25 +74,25 @@ func NewJWTService(secretKey string) *JWTService {
 }
 
 // GenerateTokenPair generates both access and refresh tokens
-func (s *JWTService) GenerateTokenPair(userID uuid.UUID) (accessToken, refreshToken string, err error) {
-	now := time.Now()
-
+func (j *jwtServiceImpl) GenerateTokenPair(userID uuid.UUID) (*TokenPair, error) {
 	// Generate access token
 	accessClaims := &JWTClaims{
 		UserID:    userID.String(),
 		TokenType: "access",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.accessTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.accessTokenDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "oreo.io",
+			Subject:   userID.String(),
+			ID:        uuid.New().String(),
 		},
 	}
 
-	accessTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessToken, err = accessTokenObj.SignedString(s.secretKey)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(j.secretKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate access token: %w", err)
+		return nil, fmt.Errorf("failed to sign access token: %w", err)
 	}
 
 	// Generate refresh token
@@ -87,44 +100,54 @@ func (s *JWTService) GenerateTokenPair(userID uuid.UUID) (accessToken, refreshTo
 		UserID:    userID.String(),
 		TokenType: "refresh",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.refreshTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshTokenDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "oreo.io",
+			Subject:   userID.String(),
+			ID:        uuid.New().String(),
 		},
 	}
 
-	refreshTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshToken, err = refreshTokenObj.SignedString(s.secretKey)
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString(j.secretKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, fmt.Errorf("failed to sign refresh token: %w", err)
 	}
 
-	return accessToken, refreshToken, nil
+	return &TokenPair{
+		AccessToken:  accessTokenString,
+		RefreshToken: refreshTokenString,
+	}, nil
 }
 
-// ValidateAccessToken validates an access token and returns claims
-func (s *JWTService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
-	return s.validateToken(tokenString, "access")
+// ValidateAccessToken validates an access token and returns the claims
+func (j *jwtServiceImpl) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
+	return j.validateToken(tokenString, "access")
 }
 
-// ValidateRefreshToken validates a refresh token and returns claims
-func (s *JWTService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
-	return s.validateToken(tokenString, "refresh")
-}
-
-// validateToken validates a token with specific type
-func (s *JWTService) validateToken(tokenString, expectedType string) (*JWTClaims, error) {
-	if tokenString == "" {
-		return nil, errors.New("token is required")
+// RefreshAccessToken generates a new access token using a refresh token
+func (j *jwtServiceImpl) RefreshAccessToken(refreshToken string) (*TokenPair, error) {
+	claims, err := j.validateToken(refreshToken, "refresh")
+	if err != nil {
+		return nil, err
 	}
 
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID in token: %w", err)
+	}
+
+	return j.GenerateTokenPair(userID)
+}
+
+// validateToken is a helper method to validate tokens
+func (j *jwtServiceImpl) validateToken(tokenString, expectedType string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return s.secretKey, nil
+		return j.secretKey, nil
 	})
 
 	if err != nil {
@@ -136,59 +159,9 @@ func (s *JWTService) validateToken(tokenString, expectedType string) (*JWTClaims
 		return nil, errors.New("invalid token")
 	}
 
-	// Validate token type
 	if claims.TokenType != expectedType {
-		return nil, fmt.Errorf("invalid token type: expected %s, got %s", expectedType, claims.TokenType)
+		return nil, fmt.Errorf("expected %s token, got %s", expectedType, claims.TokenType)
 	}
 
 	return claims, nil
-}
-
-// RefreshAccessToken generates a new access token using a valid refresh token
-func (s *JWTService) RefreshAccessToken(refreshToken string) (string, error) {
-	claims, err := s.ValidateRefreshToken(refreshToken)
-	if err != nil {
-		return "", fmt.Errorf("invalid refresh token: %w", err)
-	}
-
-	userID, err := uuid.Parse(claims.UserID)
-	if err != nil {
-		return "", fmt.Errorf("invalid user ID in token: %w", err)
-	}
-
-	// Generate new access token only (refresh token remains the same)
-	now := time.Now()
-	accessClaims := &JWTClaims{
-		UserID:    userID.String(),
-		TokenType: "access",
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.accessTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			Issuer:    "oreo.io",
-		},
-	}
-
-	accessTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessToken, err := accessTokenObj.SignedString(s.secretKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate new access token: %w", err)
-	}
-
-	return accessToken, nil
-}
-
-// ExtractUserID extracts user ID from a valid access token
-func (s *JWTService) ExtractUserID(tokenString string) (uuid.UUID, error) {
-	claims, err := s.ValidateAccessToken(tokenString)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	userID, err := uuid.Parse(claims.UserID)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid user ID in token: %w", err)
-	}
-
-	return userID, nil
 }
