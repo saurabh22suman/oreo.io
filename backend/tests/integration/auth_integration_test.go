@@ -54,9 +54,8 @@ type UserResponse struct {
 
 // ErrorResponse represents an error response
 type ErrorResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
 	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
 }
 
 // HTTPClient creates a configured HTTP client
@@ -206,14 +205,13 @@ func TestUserRegistration(t *testing.T) {
 		t.Logf("Duplicate registration response status: %d", resp.StatusCode)
 		t.Logf("Duplicate registration response body: %s", string(body))
 
-		assert.Equal(t, 400, resp.StatusCode, "Duplicate registration should fail")
+		assert.Equal(t, 409, resp.StatusCode, "Duplicate registration should fail with 409 Conflict")
 
 		var errorResp ErrorResponse
 		err := json.Unmarshal(body, &errorResp)
 		require.NoError(t, err)
 
-		assert.False(t, errorResp.Success)
-		assert.Contains(t, errorResp.Message, "already exists")
+		assert.Contains(t, errorResp.Error, "already exists")
 	})
 
 	t.Run("Invalid registration data", func(t *testing.T) {
@@ -294,7 +292,7 @@ func TestUserLogin(t *testing.T) {
 		err := json.Unmarshal(body, &errorResp)
 		require.NoError(t, err)
 
-		assert.False(t, errorResp.Success)
+		assert.NotEmpty(t, errorResp.Error)
 	})
 
 	t.Run("Non-existent user", func(t *testing.T) {

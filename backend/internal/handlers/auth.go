@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/saurabh22suman/oreo.io/internal/models"
@@ -151,15 +152,25 @@ func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 		ctx := context.Background()
 		authResp, err := h.authService.Register(ctx, &req)
 		if err != nil {
-			if err.Error() == "email already exists" {
+			// Check for user already exists error
+			if strings.Contains(err.Error(), "already exists") {
 				c.JSON(http.StatusConflict, gin.H{
-					"error": "Email already exists",
+					"error": "An account with this email address already exists",
+				})
+				return
+			}
+
+			// Check for validation errors
+			if strings.Contains(err.Error(), "validation failed") {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Invalid user data provided",
+					"details": err.Error(),
 				})
 				return
 			}
 
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to register user",
+				"error": "Failed to register user. Please try again later.",
 			})
 			return
 		}
@@ -192,15 +203,24 @@ func (h *AuthHandlers) LoginWithService() gin.HandlerFunc {
 		ctx := context.Background()
 		authResp, err := h.authService.Login(ctx, loginReq)
 		if err != nil {
-			if err.Error() == "invalid credentials" {
+			// Check for authentication errors (invalid credentials or user not found)
+			if strings.Contains(err.Error(), "invalid email or password") {
 				c.JSON(http.StatusUnauthorized, gin.H{
-					"error": "Invalid email or password",
+					"error": "Invalid email or password. Please check your credentials and try again.",
+				})
+				return
+			}
+
+			// Check for other authentication-related errors
+			if strings.Contains(err.Error(), "failed to get user") {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Invalid email or password. Please check your credentials and try again.",
 				})
 				return
 			}
 
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to authenticate user",
+				"error": "Authentication failed. Please try again later.",
 			})
 			return
 		}
