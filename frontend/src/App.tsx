@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
+import ProjectManagementPage from '@/pages/ProjectManagementPage';
 
 const App: React.FC = () => {
   return (
@@ -22,6 +23,24 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute>
                   <DashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/project/:projectId" 
+              element={
+                <ProtectedRoute>
+                  <ProjectManagementPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/project/:projectId" 
+              element={
+                <ProtectedRoute>
+                  <ProjectManagementPage />
                 </ProtectedRoute>
               } 
             />

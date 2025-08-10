@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>Test Login Error Handling</h1>
+    <form id="loginForm">
+        <input type="email" id="email" placeholder="Email" value="wrong@test.com" required>
+        <input type="password" id="password" placeholder="Password" value="wrongpass" required>
+        <button type="submit">Login</button>
+    </form>
+    <div id="error" style="color: red; margin-top: 10px;"></div>
+    <div id="response" style="margin-top: 10px; background: #f0f0f0; padding: 10px;"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error');
+            const responseDiv = document.getElementById('response');
+            
+            errorDiv.textContent = '';
+            responseDiv.textContent = '';
+            
+            try {
+                const response = await axios.post('http://localhost:8080/api/v1/auth/login', {
+                    email: email,
+                    password: password
+                }, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                responseDiv.textContent = 'Login successful: ' + JSON.stringify(response.data, null, 2);
+            } catch (error) {
+                console.log('Full error object:', error);
+                console.log('Response data:', error.response?.data);
+                console.log('Response status:', error.response?.status);
+                
+                const errorMessage = error.response?.data?.error || 'Login failed';
+                errorDiv.textContent = 'Error: ' + errorMessage;
+                responseDiv.textContent = 'Full response: ' + JSON.stringify(error.response?.data, null, 2);
+            }
+        });
+    </script>
+</body>
+</html>

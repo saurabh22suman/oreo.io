@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -140,8 +141,10 @@ func GetCurrentUser() gin.HandlerFunc {
 // RegisterWithService creates a new user account using the auth service
 func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Println("RegisterWithService called - START")
 		var req models.CreateUserRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Printf("RegisterWithService: JSON binding error: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":   "Invalid request body",
 				"details": err.Error(),
@@ -149,9 +152,11 @@ func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 			return
 		}
 
+		log.Printf("RegisterWithService: Request data: %+v", req)
 		ctx := context.Background()
 		authResp, err := h.authService.Register(ctx, &req)
 		if err != nil {
+			log.Printf("RegisterWithService: Auth service error: %v", err)
 			// Check for user already exists error
 			if strings.Contains(err.Error(), "already exists") {
 				c.JSON(http.StatusConflict, gin.H{
@@ -175,6 +180,7 @@ func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 			return
 		}
 
+		log.Printf("RegisterWithService: Success - User created: %+v", authResp.User)
 		c.JSON(http.StatusCreated, AuthResponse{
 			User:         authResp.User,
 			AccessToken:  authResp.Tokens.AccessToken,

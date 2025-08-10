@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,14 +19,18 @@ type ProjectHandlers struct {
 
 // NewProjectHandlers creates new project handlers
 func NewProjectHandlers(db *sqlx.DB) *ProjectHandlers {
-	return &ProjectHandlers{
+	log.Printf("Creating new ProjectHandlers with db: %+v", db)
+	handlers := &ProjectHandlers{
 		projectRepo: repository.NewProjectRepository(db),
 	}
+	log.Printf("Created ProjectHandlers: %+v", handlers)
+	return handlers
 }
 
 // GetProjects returns all projects for the authenticated user
 func (h *ProjectHandlers) GetProjects() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Println("ProjectHandlers.GetProjects called - NEW HANDLER IS WORKING!")
 		// Get user ID from auth middleware
 		userID, exists := c.Get("user_id")
 		if !exists {
@@ -43,7 +48,7 @@ func (h *ProjectHandlers) GetProjects() gin.HandlerFunc {
 		projects, err := h.projectRepo.GetByOwnerID(userUUID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to retrieve projects",
+				"error":   "Failed to retrieve projects",
 				"details": err.Error(),
 			})
 			return
@@ -76,7 +81,7 @@ func (h *ProjectHandlers) CreateProject() gin.HandlerFunc {
 		var req models.CreateProjectRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid request data",
+				"error":   "Invalid request data",
 				"details": err.Error(),
 			})
 			return
@@ -85,7 +90,7 @@ func (h *ProjectHandlers) CreateProject() gin.HandlerFunc {
 		// Validate request
 		if err := req.Validate(); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Validation failed",
+				"error":   "Validation failed",
 				"details": err.Error(),
 			})
 			return
@@ -97,7 +102,7 @@ func (h *ProjectHandlers) CreateProject() gin.HandlerFunc {
 		// Save to database
 		if err := h.projectRepo.Create(project); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to create project",
+				"error":   "Failed to create project",
 				"details": err.Error(),
 			})
 			return
@@ -131,7 +136,7 @@ func (h *ProjectHandlers) GetProject() gin.HandlerFunc {
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid project ID",
+				"error":   "Invalid project ID",
 				"details": err.Error(),
 			})
 			return
@@ -141,7 +146,7 @@ func (h *ProjectHandlers) GetProject() gin.HandlerFunc {
 		exists, err = h.projectRepo.Exists(projectID, userUUID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to check project ownership",
+				"error":   "Failed to check project ownership",
 				"details": err.Error(),
 			})
 			return
@@ -156,7 +161,7 @@ func (h *ProjectHandlers) GetProject() gin.HandlerFunc {
 		project, err := h.projectRepo.GetByID(projectID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to retrieve project",
+				"error":   "Failed to retrieve project",
 				"details": err.Error(),
 			})
 			return
@@ -187,7 +192,7 @@ func (h *ProjectHandlers) UpdateProject() gin.HandlerFunc {
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid project ID",
+				"error":   "Invalid project ID",
 				"details": err.Error(),
 			})
 			return
@@ -197,7 +202,7 @@ func (h *ProjectHandlers) UpdateProject() gin.HandlerFunc {
 		exists, err = h.projectRepo.Exists(projectID, userUUID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to check project ownership",
+				"error":   "Failed to check project ownership",
 				"details": err.Error(),
 			})
 			return
@@ -212,7 +217,7 @@ func (h *ProjectHandlers) UpdateProject() gin.HandlerFunc {
 		var req models.UpdateProjectRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid request data",
+				"error":   "Invalid request data",
 				"details": err.Error(),
 			})
 			return
@@ -221,7 +226,7 @@ func (h *ProjectHandlers) UpdateProject() gin.HandlerFunc {
 		// Validate request
 		if err := req.Validate(); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Validation failed",
+				"error":   "Validation failed",
 				"details": err.Error(),
 			})
 			return
@@ -237,7 +242,7 @@ func (h *ProjectHandlers) UpdateProject() gin.HandlerFunc {
 		project, err := h.projectRepo.Update(projectID, &req)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to update project",
+				"error":   "Failed to update project",
 				"details": err.Error(),
 			})
 			return
@@ -271,7 +276,7 @@ func (h *ProjectHandlers) DeleteProject() gin.HandlerFunc {
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid project ID",
+				"error":   "Invalid project ID",
 				"details": err.Error(),
 			})
 			return
@@ -280,53 +285,12 @@ func (h *ProjectHandlers) DeleteProject() gin.HandlerFunc {
 		// Delete project
 		if err := h.projectRepo.Delete(projectID, userUUID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to delete project",
+				"error":   "Failed to delete project",
 				"details": err.Error(),
 			})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Project deleted successfully"})
-	}
-}
-
-// Legacy functions for backward compatibility - these will be removed
-func GetProjects() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Please use ProjectHandlers instead",
-		})
-	}
-}
-
-func CreateProject() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Please use ProjectHandlers instead",
-		})
-	}
-}
-
-func GetProject() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Please use ProjectHandlers instead",
-		})
-	}
-}
-
-func UpdateProject() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Please use ProjectHandlers instead",
-		})
-	}
-}
-
-func DeleteProject() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Please use ProjectHandlers instead",
-		})
 	}
 }

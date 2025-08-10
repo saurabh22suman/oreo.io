@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -23,21 +22,22 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Error loading .env file: %v", err)
+	// Load environment variables only if not in Docker
+	// In Docker, environment variables are set by docker-compose
+	if os.Getenv("DB_HOST") == "" {
+		if err := godotenv.Load(); err != nil {
+			log.Printf("Warning: Error loading .env file: %v", err)
+		}
+	} else {
+		log.Println("Running in Docker - using environment variables from docker-compose")
 	}
 
-	// Initialize database connection with fallback to mock
-	dbConn, err := database.NewConnectionWithFallback()
+	// Initialize database connection - force real DB for projects functionality
+	dbConn, err := database.NewConnection()
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer func() {
-		if closer, ok := dbConn.(interface{ Close() error }); ok {
-			closer.Close()
-		}
-	}()
+	defer dbConn.Close()
 
 	// Initialize Redis connection with fallback to mock
 	redisConn, err := database.NewRedisConnectionWithFallback()
@@ -50,31 +50,17 @@ func main() {
 		}
 	}()
 
-	// Initialize services
-	var userRepo repository.UserRepository
-	var projectHandlers *handlers.ProjectHandlers
+	// Initialize services with real database
+	log.Println("Using real database for all operations")
 
-	// Check if we're using mock services
-	if os.Getenv("USE_MOCK_DB") == "true" {
-		log.Println("Using mock database for project handlers")
-		userRepo = repository.NewMockUserRepository()
-		// For mock mode, we'll create a basic mock project handler
-		// TODO: Implement mock project handlers if needed
-	} else {
-		// Type assertion for database connection
-		db, ok := dbConn.(*sql.DB)
-		if !ok {
-			log.Printf("Database connection type: %T", dbConn)
-			log.Println("Database connection is not a *sql.DB, falling back to mock mode")
-			userRepo = repository.NewMockUserRepository()
-		} else {
-			log.Println("Using real database for project handlers")
-			// Create sqlx DB wrapper for project handlers
-			sqlxDB := sqlx.NewDb(db, "postgres")
-			
-			userRepo = repository.NewUserRepository(db)
-			projectHandlers = handlers.NewProjectHandlers(sqlxDB)
-		}
+	// Create sqlx DB wrapper for project handlers
+	sqlxDB := sqlx.NewDb(dbConn, "postgres")
+
+	userRepo := repository.NewUserRepository(dbConn)
+	projectHandlers := handlers.NewProjectHandlers(sqlxDB)
+	log.Printf("Project handlers initialized: %+v", projectHandlers)
+	if projectHandlers == nil {
+		log.Fatal("Project handlers is nil!")
 	}
 
 	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"))
@@ -87,6 +73,9 @@ func main() {
 
 	// Initialize Gin router
 	router := gin.New()
+
+	// Set max multipart memory to 50MB (default is 32MB)
+	router.MaxMultipartMemory = 50 << 20 // 50MB
 
 	// Middleware
 	router.Use(gin.Logger())
@@ -146,30 +135,29 @@ func main() {
 			auth.GET("/me", middleware.RequireAuthWithService(authService), handlers.GetCurrentUser())
 		}
 
-		// Protected routes will be added here
+		// Protected routes
 		protected := v1.Group("")
 		protected.Use(middleware.RequireAuthWithService(authService))
 		{
 			// Project routes
-			if projectHandlers != nil {
-				projects := protected.Group("/projects")
-				{
-					projects.GET("", projectHandlers.GetProjects())
-					projects.POST("", projectHandlers.CreateProject())
-					projects.GET("/:id", projectHandlers.GetProject())
-					projects.PUT("/:id", projectHandlers.UpdateProject())
-					projects.DELETE("/:id", projectHandlers.DeleteProject())
-				}
-			} else {
-				// Fallback for mock mode
-				projects := protected.Group("/projects")
-				{
-					projects.GET("", handlers.GetProjects())
-					projects.POST("", handlers.CreateProject())
-					projects.GET("/:id", handlers.GetProject())
-					projects.PUT("/:id", handlers.UpdateProject())
-					projects.DELETE("/:id", handlers.DeleteProject())
-				}
+			log.Printf("Registering project routes with handlers: %+v", projectHandlers)
+			projects := protected.Group("/projects")
+			{
+				projects.GET("", projectHandlers.GetProjects())
+				projects.POST("", projectHandlers.CreateProject())
+				projects.GET("/:id", projectHandlers.GetProject())
+				projects.PUT("/:id", projectHandlers.UpdateProject())
+				projects.DELETE("/:id", projectHandlers.DeleteProject())
+			}
+
+			// Dataset routes
+			datasetHandlers := handlers.NewDatasetHandlers(sqlxDB)
+			datasets := protected.Group("/datasets")
+			{
+				datasets.POST("/upload", datasetHandlers.UploadDataset())
+				datasets.GET("/user", datasetHandlers.GetUserDatasets())
+				datasets.GET("/project/:project_id", datasetHandlers.GetDatasets())
+				datasets.DELETE("/:id", datasetHandlers.DeleteDataset())
 			}
 		}
 	}

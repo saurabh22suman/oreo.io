@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CreateProjectRequest } from '@/types/project';
 
 interface CreateProjectModalProps {
@@ -6,6 +6,8 @@ interface CreateProjectModalProps {
   onClose: () => void;
   onSubmit: (projectData: CreateProjectRequest) => Promise<void>;
   isLoading?: boolean;
+  initialData?: CreateProjectRequest;
+  title?: string;
 }
 
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
@@ -13,11 +15,22 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   onClose,
   onSubmit,
   isLoading = false,
+  initialData,
+  title = 'Create New Project',
 }) => {
   const [formData, setFormData] = useState<CreateProjectRequest>({
     name: '',
     description: '',
   });
+
+  // Update form data when initialData changes (for editing)
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData);
+    } else {
+      setFormData({ name: '', description: '' });
+    }
+  }, [initialData, isOpen]);
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -81,7 +94,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Project</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600"
@@ -151,7 +164,10 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               className="flex-1 px-4 py-2 text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors disabled:bg-primary-400"
               disabled={isLoading || !formData.name.trim()}
             >
-              {isLoading ? 'Creating...' : 'Create Project'}
+              {isLoading 
+                ? (initialData ? 'Updating...' : 'Creating...') 
+                : (initialData ? 'Update Project' : 'Create Project')
+              }
             </button>
           </div>
         </form>
