@@ -163,7 +163,7 @@ func (h *AuthHandlers) RegisterWithService() gin.HandlerFunc {
 			// Check for validation errors
 			if strings.Contains(err.Error(), "validation failed") {
 				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "Invalid user data provided",
+					"error":   "Invalid user data provided",
 					"details": err.Error(),
 				})
 				return

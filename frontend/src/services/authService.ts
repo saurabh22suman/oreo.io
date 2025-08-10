@@ -23,6 +23,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    // Don't intercept login/register errors - let them bubble up to the component
+    if (error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')) {
+      return Promise.reject(error);
+    }
+    
     if (error.response?.status === 401) {
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken) {
