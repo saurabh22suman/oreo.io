@@ -21,31 +21,31 @@ func TestUserRepository_Create(t *testing.T) {
 
 func TestUserRepository_GetByEmail(t *testing.T) {
 	t.Skip("Integration test - requires database setup")
-	
+
 	// TODO: Test GetByEmail functionality
 }
 
 func TestUserRepository_GetByID(t *testing.T) {
 	t.Skip("Integration test - requires database setup")
-	
+
 	// TODO: Test GetByID functionality
 }
 
 func TestUserRepository_Update(t *testing.T) {
 	t.Skip("Integration test - requires database setup")
-	
+
 	// TODO: Test Update functionality
 }
 
 func TestUserRepository_Delete(t *testing.T) {
 	t.Skip("Integration test - requires database setup")
-	
+
 	// TODO: Test Delete functionality
 }
 
 func TestUserRepository_List(t *testing.T) {
 	t.Skip("Integration test - requires database setup")
-	
+
 	// TODO: Test List functionality with pagination
 }
 
