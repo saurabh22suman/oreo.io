@@ -1,0 +1,14 @@
+# User Data Samples
+
+This directory will contain user and customer-related sample datasets.
+
+## Planned Datasets
+
+- **users.csv**: Basic user profiles and demographics
+- **user_preferences.csv**: User preferences and settings
+- **customer_behavior.csv**: User interaction and behavior data
+- **user_sessions.csv**: Login and session data
+
+## Status: Pending
+
+These datasets will be added in future iterations to support user management and customer analytics features.

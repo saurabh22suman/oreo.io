@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 	"github.com/saurabh22suman/oreo.io/internal/auth"
 	"github.com/saurabh22suman/oreo.io/internal/database"
@@ -51,22 +52,35 @@ func main() {
 
 	// Initialize services
 	var userRepo repository.UserRepository
+	var projectHandlers *handlers.ProjectHandlers
 
 	// Check if we're using mock services
 	if os.Getenv("USE_MOCK_DB") == "true" {
+		log.Println("Using mock database for project handlers")
 		userRepo = repository.NewMockUserRepository()
+		// For mock mode, we'll create a basic mock project handler
+		// TODO: Implement mock project handlers if needed
 	} else {
 		// Type assertion for database connection
 		db, ok := dbConn.(*sql.DB)
 		if !ok {
-			log.Fatal("Database connection is not a *sql.DB")
+			log.Printf("Database connection type: %T", dbConn)
+			log.Println("Database connection is not a *sql.DB, falling back to mock mode")
+			userRepo = repository.NewMockUserRepository()
+		} else {
+			log.Println("Using real database for project handlers")
+			// Create sqlx DB wrapper for project handlers
+			sqlxDB := sqlx.NewDb(db, "postgres")
+			
+			userRepo = repository.NewUserRepository(db)
+			projectHandlers = handlers.NewProjectHandlers(sqlxDB)
 		}
-		userRepo = repository.NewUserRepository(db)
 	}
 
 	jwtService := auth.NewJWTService(os.Getenv("JWT_SECRET"))
 	authService := services.NewAuthService(userRepo, jwtService)
-	authHandlers := handlers.NewAuthHandlers(authService) // Set Gin mode based on environment
+	authHandlers := handlers.NewAuthHandlers(authService)
+	sampleDataHandlers := handlers.NewSampleDataHandlers() // Set Gin mode based on environment
 	if os.Getenv("ENVIRONMENT") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -114,27 +128,48 @@ func main() {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		// Authentication routes will be added here
+		// Sample data routes (public)
+		sampleData := v1.Group("/sample-data")
+		{
+			sampleData.GET("", sampleDataHandlers.ListSampleDatasets)
+			sampleData.GET("/:category/:filename/info", sampleDataHandlers.GetSampleDatasetInfo)
+			sampleData.GET("/:category/:filename/download", sampleDataHandlers.DownloadSampleDataset)
+			sampleData.GET("/:category/:filename/preview", sampleDataHandlers.PreviewSampleDataset)
+		}
+
+		// Authentication routes
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandlers.RegisterWithService())
 			auth.POST("/login", authHandlers.LoginWithService())
 			auth.POST("/logout", handlers.Logout())
-			auth.GET("/me", middleware.RequireAuth(), handlers.GetCurrentUser())
+			auth.GET("/me", middleware.RequireAuthWithService(authService), handlers.GetCurrentUser())
 		}
 
 		// Protected routes will be added here
 		protected := v1.Group("")
-		protected.Use(middleware.RequireAuth())
+		protected.Use(middleware.RequireAuthWithService(authService))
 		{
 			// Project routes
-			projects := protected.Group("/projects")
-			{
-				projects.GET("", handlers.GetProjects())
-				projects.POST("", handlers.CreateProject())
-				projects.GET("/:id", handlers.GetProject())
-				projects.PUT("/:id", handlers.UpdateProject())
-				projects.DELETE("/:id", handlers.DeleteProject())
+			if projectHandlers != nil {
+				projects := protected.Group("/projects")
+				{
+					projects.GET("", projectHandlers.GetProjects())
+					projects.POST("", projectHandlers.CreateProject())
+					projects.GET("/:id", projectHandlers.GetProject())
+					projects.PUT("/:id", projectHandlers.UpdateProject())
+					projects.DELETE("/:id", projectHandlers.DeleteProject())
+				}
+			} else {
+				// Fallback for mock mode
+				projects := protected.Group("/projects")
+				{
+					projects.GET("", handlers.GetProjects())
+					projects.POST("", handlers.CreateProject())
+					projects.GET("/:id", handlers.GetProject())
+					projects.PUT("/:id", handlers.UpdateProject())
+					projects.DELETE("/:id", handlers.DeleteProject())
+				}
 			}
 		}
 	}

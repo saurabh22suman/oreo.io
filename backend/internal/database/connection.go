@@ -14,6 +14,37 @@ import (
 
 // NewConnection creates a new PostgreSQL database connection
 func NewConnection() (*sql.DB, error) {
+	// First try DATABASE_URL if available
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		db, err := sql.Open("postgres", databaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open database connection with DATABASE_URL: %w", err)
+		}
+
+		// Configure connection pool
+		maxConnections, _ := strconv.Atoi(os.Getenv("DB_MAX_CONNECTIONS"))
+		if maxConnections == 0 {
+			maxConnections = 25
+		}
+
+		maxIdleConnections, _ := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNECTIONS"))
+		if maxIdleConnections == 0 {
+			maxIdleConnections = 5
+		}
+
+		db.SetMaxOpenConns(maxConnections)
+		db.SetMaxIdleConns(maxIdleConnections)
+		db.SetConnMaxLifetime(time.Hour)
+
+		// Test the connection
+		if err := db.Ping(); err != nil {
+			return nil, fmt.Errorf("failed to ping database: %w", err)
+		}
+
+		return db, nil
+	}
+
+	// Fallback to individual environment variables
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")

@@ -40,8 +40,11 @@ COPY --from=builder /app/.env.example ./.env
 # Copy migration files from the repository root
 COPY database ./database
 
-# Copy startup script
-COPY --from=builder /app/docker-entrypoint.sh .
+# Copy sample data from the repository root
+COPY sample-data ./sample-data
+
+# Copy startup script from backend directory
+COPY backend/docker-entrypoint.sh .
 RUN chmod +x docker-entrypoint.sh
 
 # Change ownership to non-root user
@@ -55,5 +58,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Run the startup script
-CMD ["./docker-entrypoint.sh"]
+# Run the server directly for now (bypass entrypoint script issue)
+CMD ["./server"]
