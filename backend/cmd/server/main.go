@@ -159,6 +159,24 @@ func main() {
 				datasets.GET("/project/:project_id", datasetHandlers.GetDatasets())
 				datasets.DELETE("/:id", datasetHandlers.DeleteDataset())
 			}
+
+			// Schema routes
+			schemaHandlers := handlers.NewSchemaHandlers(sqlxDB)
+			schemas := protected.Group("/schemas")
+			{
+				schemas.POST("", schemaHandlers.CreateSchema())
+				schemas.GET("/dataset/:dataset_id", schemaHandlers.GetSchema())
+				schemas.PUT("/:schema_id", schemaHandlers.UpdateSchema())
+				schemas.DELETE("/:schema_id", schemaHandlers.DeleteSchema())
+			}
+
+			// Data routes
+			data := protected.Group("/data")
+			{
+				data.GET("/dataset/:dataset_id", schemaHandlers.GetDatasetData())
+				data.PUT("/dataset/:dataset_id", schemaHandlers.UpdateDatasetData())
+				data.DELETE("/dataset/:dataset_id/row/:row_index", schemaHandlers.DeleteDatasetData())
+			}
 		}
 	}
 

@@ -6,6 +6,7 @@ import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ProjectManagementPage from '@/pages/ProjectManagementPage';
+import DataViewPage from '@/pages/DataViewPage';
 
 const App: React.FC = () => {
   return (
@@ -37,10 +38,10 @@ const App: React.FC = () => {
             />
             
             <Route 
-              path="/project/:projectId" 
+              path="/dataset/:datasetId/view" 
               element={
                 <ProtectedRoute>
-                  <ProjectManagementPage />
+                  <DataViewPage />
                 </ProtectedRoute>
               } 
             />

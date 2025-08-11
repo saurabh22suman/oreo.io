@@ -7,6 +7,7 @@ import { Project, CreateProjectRequest } from '@/types/project';
 import { Dataset } from '@/types/dataset';
 import UploadDatasetModal from '@/components/UploadDatasetModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
+import { Eye, Trash2 } from 'lucide-react';
 
 interface ProjectMember {
   id: string;
@@ -356,12 +357,24 @@ const ProjectManagementPage: React.FC = () => {
                             {new Date(dataset.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button 
-                              onClick={() => handleDeleteDataset(dataset.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => navigate(`/dataset/${dataset.id}/view`)}
+                                className="text-blue-600 hover:text-blue-900 flex items-center"
+                                title="View and edit data"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View Data
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteDataset(dataset.id)}
+                                className="text-red-600 hover:text-red-900 flex items-center"
+                                title="Delete dataset"
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
