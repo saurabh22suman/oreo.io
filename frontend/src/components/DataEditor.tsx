@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Edit, Trash2, Save, X, Eye } from 'lucide-react';
+import { Edit, Trash2, Save, X, Eye, Plus } from 'lucide-react';
 import SQLQuery from './SQLQuery';
+import AppendNewData from './AppendNewData';
 
 interface SchemaField {
   id: string;
@@ -54,6 +55,8 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
   const [error, setError] = useState<string>('');
   const [isQueryMode, setIsQueryMode] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(true); // New: Start in preview mode
+  const [showAppendModal, setShowAppendModal] = useState(false);
+  const [datasetName, setDatasetName] = useState<string>('');
 
   // Maximum rows allowed (backend enforces 1000 limit)
   const MAX_ROWS = 1000;
@@ -63,6 +66,7 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
     if (datasetId) {
       loadSchema();
       loadData(); // Load data immediately regardless of schema
+      loadDatasetInfo(); // Load dataset name and info
     }
   }, [datasetId]);
 
@@ -107,6 +111,25 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
       // We can still show data without schema
       setSchema(null);
       onSchemaChange?.(null);
+    }
+  };
+
+  const loadDatasetInfo = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`/api/v1/datasets/${datasetId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setDatasetName(result.dataset?.name || 'Unknown Dataset');
+      }
+    } catch (err) {
+      console.error('Error loading dataset info:', err);
+      setDatasetName('Unknown Dataset');
     }
   };
 
@@ -382,11 +405,20 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
           )}
         </div>
         <div className="flex space-x-2">
+          {/* Append New Data Button */}
+          <button
+            onClick={() => setShowAppendModal(true)}
+            className="flex items-center px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Append New Data
+          </button>
+
           {/* View Mode Toggle Buttons */}
           {isPreviewMode ? (
             <button
               onClick={toggleToFullData}
-              className="flex items-center px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              className="flex items-center px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               <Eye className="w-4 h-4 mr-2" />
               Show Full Data
@@ -414,7 +446,7 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
           </button>
           <button
             onClick={loadData}
-            className="flex items-center px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="flex items-center px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
           >
             Refresh
           </button>
@@ -586,6 +618,19 @@ const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: pro
           </div>
         )}
       </div>
+
+      {/* Append New Data Modal */}
+      {showAppendModal && datasetId && (
+        <AppendNewData
+          datasetId={datasetId}
+          datasetName={datasetName}
+          onClose={() => {
+            setShowAppendModal(false);
+            // Optionally reload data after successful append
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 };

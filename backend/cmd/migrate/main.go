@@ -35,7 +35,7 @@ func main() {
 
 	// Initialize migration
 	m, err := migrate.New(
-		"file://./database/migrations",
+		"file://./migrations",
 		databaseURL,
 	)
 	if err != nil {

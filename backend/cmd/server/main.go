@@ -163,6 +163,7 @@ func main() {
 			}
 
 			// Schema routes
+			schemaRepo := repository.NewSchemaRepository(sqlxDB)
 			schemaHandlers := handlers.NewSchemaHandlers(sqlxDB)
 			schemas := protected.Group("/schemas")
 			{
@@ -180,6 +181,41 @@ func main() {
 				data.POST("/dataset/:dataset_id/query", schemaHandlers.QueryDatasetData())
 				data.PUT("/dataset/:dataset_id", schemaHandlers.UpdateDatasetData())
 				data.DELETE("/dataset/:dataset_id/row/:row_index", schemaHandlers.DeleteDatasetData())
+			}
+
+			// Data submission routes for append functionality
+			submissionRepo := repository.NewDataSubmissionRepository(sqlxDB)
+			validationSvc := services.NewValidationService(schemaRepo, submissionRepo)
+			submissionHandlers := handlers.NewDataSubmissionHandlers(submissionRepo, schemaRepo, validationSvc)
+			
+			// User submission routes
+			datasets.POST("/:dataset_id/append", submissionHandlers.SubmitDataForAppend())
+			datasets.GET("/:dataset_id/submissions", submissionHandlers.GetDataSubmissions())
+			
+			// Submission management routes
+			submissions := protected.Group("/submissions")
+			{
+				submissions.GET("/:submission_id/details", submissionHandlers.GetSubmissionDetails())
+			}
+			
+			// Staging data routes for live editing
+			staging := protected.Group("/staging")
+			{
+				staging.PUT("/:staging_id", submissionHandlers.UpdateStagingData())
+			}
+
+			// Business rules routes
+			businessRules := protected.Group("/datasets/:dataset_id/rules")
+			{
+				businessRules.POST("", submissionHandlers.CreateBusinessRule())
+				businessRules.GET("", submissionHandlers.GetBusinessRules())
+			}
+
+			// Admin routes for submission review
+			admin := protected.Group("/admin")
+			{
+				admin.GET("/submissions/pending", submissionHandlers.GetPendingSubmissions())
+				admin.PUT("/submissions/:submission_id/review", submissionHandlers.ReviewSubmission())
 			}
 		}
 	}

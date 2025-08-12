@@ -132,8 +132,8 @@ type UpdateDataRequest struct {
 	Data     map[string]interface{} `json:"data" binding:"required"`
 }
 
-// ValidationError represents a schema validation error
-type ValidationError struct {
+// SchemaValidationError represents a schema validation error
+type SchemaValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 	Value   interface{} `json:"value"`
@@ -141,6 +141,6 @@ type ValidationError struct {
 
 // SchemaValidationResult represents the result of schema validation
 type SchemaValidationResult struct {
-	IsValid bool              `json:"is_valid"`
-	Errors  []ValidationError `json:"errors"`
+	IsValid bool                     `json:"is_valid"`
+	Errors  []SchemaValidationError  `json:"errors"`
 }
