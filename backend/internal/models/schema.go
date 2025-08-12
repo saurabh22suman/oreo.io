@@ -5,6 +5,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// SchemaFieldType represents the data type of a schema field
+type SchemaFieldType string
+
+const (
+	FieldTypeString   SchemaFieldType = "string"
+	FieldTypeNumber   SchemaFieldType = "number"
+	FieldTypeBoolean  SchemaFieldType = "boolean"
+	FieldTypeDate     SchemaFieldType = "date"
+	FieldTypeDateTime SchemaFieldType = "datetime"
+	FieldTypeEmail    SchemaFieldType = "email"
+	FieldTypeURL      SchemaFieldType = "url"
+	FieldTypeUUID     SchemaFieldType = "uuid"
+)
+
 // DatasetSchema represents the schema definition for a dataset
 type DatasetSchema struct {
 	ID          uuid.UUID      `json:"id" db:"id"`
@@ -22,7 +36,7 @@ type SchemaField struct {
 	SchemaID     uuid.UUID       `json:"schema_id" db:"schema_id"`
 	Name         string          `json:"name" db:"name"`
 	DisplayName  string          `json:"display_name" db:"display_name"`
-	DataType     string          `json:"data_type" db:"data_type"` // string, number, date, boolean, email, url
+	DataType     string          `json:"data_type" db:"data_type"` // Will store string values from SchemaFieldType
 	IsRequired   bool            `json:"is_required" db:"is_required"`
 	IsUnique     bool            `json:"is_unique" db:"is_unique"`
 	DefaultValue *string         `json:"default_value" db:"default_value"`
@@ -106,7 +120,7 @@ type DataPreviewRequest struct {
 type DataPreviewResponse struct {
 	Data        []map[string]interface{} `json:"data"`
 	Schema      *DatasetSchema           `json:"schema"`
-	TotalRows   int                      `json:"total_rows"`
+	TotalRows   int                      `json:"total"`
 	Page        int                      `json:"page"`
 	PageSize    int                      `json:"page_size"`
 	TotalPages  int                      `json:"total_pages"`

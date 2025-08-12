@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { projectService } from '@/services/projectService';
 import { datasetService } from '@/services/datasetService';
 import { Project, CreateProjectRequest } from '@/types/project';
@@ -9,25 +8,12 @@ import UploadDatasetModal from '@/components/UploadDatasetModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
 import { Eye, Trash2 } from 'lucide-react';
 
-interface ProjectMember {
-  id: string;
-  user_id: string;
-  project_id: string;
-  role: 'admin' | 'editor' | 'reviewer' | 'viewer';
-  username: string;
-  email: string;
-  invited_at: string;
-  status: 'active' | 'pending' | 'inactive';
-}
-
 const ProjectManagementPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [project, setProject] = useState<Project | null>(null);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'datasets' | 'members' | 'settings'>('overview');
@@ -267,7 +253,7 @@ const ProjectManagementPage: React.FC = () => {
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h3 className="text-sm font-medium text-gray-500">Members</h3>
-                    <p className="text-2xl font-bold text-gray-900">{members.length}</p>
+                    <p className="text-2xl font-bold text-gray-900">0</p>
                   </div>
                 </div>
               </div>

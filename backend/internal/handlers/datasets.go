@@ -23,12 +23,14 @@ import (
 // DatasetHandlers contains dataset-related handlers
 type DatasetHandlers struct {
 	datasetRepo *repository.DatasetRepository
+	schemaRepo  *repository.SchemaRepository
 }
 
 // NewDatasetHandlers creates new dataset handlers
 func NewDatasetHandlers(db *sqlx.DB) *DatasetHandlers {
 	return &DatasetHandlers{
 		datasetRepo: repository.NewDatasetRepository(db),
+		schemaRepo:  repository.NewSchemaRepository(db),
 	}
 }
 
@@ -149,8 +151,8 @@ func (h *DatasetHandlers) UploadDataset() gin.HandlerFunc {
 			return
 		}
 
-		// Process file to get row and column count
-		rowCount, columnCount, err := h.processFile(filepath, header.Filename)
+		// Process file to get row and column count and data
+		rowCount, columnCount, headers, dataRows, err := h.processFile(filepath, header.Filename)
 		if err != nil {
 			log.Printf("Error processing file: %v", err)
 			dataset.Status = models.DatasetStatusError
@@ -160,13 +162,24 @@ func (h *DatasetHandlers) UploadDataset() gin.HandlerFunc {
 			dataset.Status = models.DatasetStatusReady
 		}
 
-		// Save dataset to database
+		// Save dataset to database first
 		if err := h.datasetRepo.Create(dataset); err != nil {
 			log.Printf("Error creating dataset: %v", err)
 			// Clean up uploaded file
 			os.Remove(filepath)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save dataset"})
 			return
+		}
+
+		// Store the actual data in database if processing was successful
+		if err == nil && len(dataRows) > 0 {
+			if err := h.schemaRepo.BulkInsertDatasetData(dataset.ID, headers, dataRows, userUUID); err != nil {
+				log.Printf("Error storing dataset data: %v", err)
+				// Don't fail the entire upload if data storage fails, 
+				// but log it for debugging
+			} else {
+				log.Printf("Successfully stored %d rows of data for dataset %s", len(dataRows), dataset.ID)
+			}
 		}
 
 		c.JSON(http.StatusCreated, gin.H{
@@ -281,7 +294,7 @@ func isValidFileType(filename string) bool {
 	return ext == ".csv" || ext == ".xlsx" || ext == ".xls"
 }
 
-func (h *DatasetHandlers) processFile(filePath, filename string) (int, int, error) {
+func (h *DatasetHandlers) processFile(filePath, filename string) (int, int, []string, [][]string, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 
 	switch ext {
@@ -290,50 +303,138 @@ func (h *DatasetHandlers) processFile(filePath, filename string) (int, int, erro
 	case ".xlsx", ".xls":
 		return h.processExcel(filePath)
 	default:
-		return 0, 0, fmt.Errorf("unsupported file type: %s", ext)
+		return 0, 0, nil, nil, fmt.Errorf("unsupported file type: %s", ext)
 	}
 }
 
-func (h *DatasetHandlers) processCSV(filePath string) (int, int, error) {
+func (h *DatasetHandlers) processCSV(filePath string) (int, int, []string, [][]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, nil, err
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, nil, err
 	}
 
 	if len(records) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil, nil
 	}
 
-	rowCount := len(records) - 1 // Subtract header row
-	columnCount := len(records[0])
+	// First row is headers, rest are data rows
+	headers := records[0]
+	dataRows := records[1:]
+	rowCount := len(dataRows)
+	columnCount := len(headers)
 
-	return rowCount, columnCount, nil
+	return rowCount, columnCount, headers, dataRows, nil
 }
 
-func (h *DatasetHandlers) processExcel(filePath string) (int, int, error) {
+func (h *DatasetHandlers) processExcel(filePath string) (int, int, []string, [][]string, error) {
 	workbook, err := xlsx.OpenFile(filePath)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, nil, err
 	}
 
 	if len(workbook.Sheets) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil, nil
 	}
 
-	sheet := workbook.Sheets[0]  // Use first sheet
-	rowCount := sheet.MaxRow - 1 // Subtract header row
-	columnCount := sheet.MaxCol
-
-	if rowCount < 0 {
-		rowCount = 0
+	sheet := workbook.Sheets[0] // Use first sheet
+	
+	var headers []string
+	var dataRows [][]string
+	
+	// Get headers from first row
+	if sheet.MaxRow > 0 {
+		headerRow, err := sheet.Row(0)
+		if err != nil {
+			return 0, 0, nil, nil, err
+		}
+		
+		// Use ForEachCell to iterate through cells
+		headerRow.ForEachCell(func(c *xlsx.Cell) error {
+			headers = append(headers, c.String())
+			return nil
+		})
+	}
+	
+	// Get data rows (skip header row)
+	for rowIndex := 1; rowIndex < sheet.MaxRow; rowIndex++ {
+		row, err := sheet.Row(rowIndex)
+		if err != nil {
+			continue
+		}
+		
+		var rowData []string
+		row.ForEachCell(func(c *xlsx.Cell) error {
+			rowData = append(rowData, c.String())
+			return nil
+		})
+		dataRows = append(dataRows, rowData)
 	}
 
-	return rowCount, columnCount, nil
+	rowCount := len(dataRows)
+	columnCount := len(headers)
+
+	return rowCount, columnCount, headers, dataRows, nil
+}
+
+// GetDatasetByID returns a specific dataset by ID
+func (h *DatasetHandlers) GetDatasetByID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		userUUID, ok := userID.(uuid.UUID)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		datasetIDStr := c.Param("id")
+		datasetID, err := uuid.Parse(datasetIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid dataset ID"})
+			return
+		}
+
+		// Get dataset with permission check
+		dataset, err := h.datasetRepo.GetByID(datasetID)
+		if err != nil {
+			log.Printf("Error getting dataset: %v", err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Dataset not found"})
+			return
+		}
+
+		// Check if user has access by getting their datasets
+		userDatasets, err := h.datasetRepo.GetByUserID(userUUID)
+		if err != nil {
+			log.Printf("Error checking user access: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify access"})
+			return
+		}
+
+		// Check if the dataset belongs to the user
+		hasAccess := false
+		for _, userDataset := range userDatasets {
+			if userDataset.ID == datasetID {
+				hasAccess = true
+				break
+			}
+		}
+
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			return
+		}
+
+		c.JSON(http.StatusOK, dataset)
+	}
 }

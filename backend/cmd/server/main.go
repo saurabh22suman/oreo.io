@@ -131,6 +131,7 @@ func main() {
 		{
 			auth.POST("/register", authHandlers.RegisterWithService())
 			auth.POST("/login", authHandlers.LoginWithService())
+			auth.POST("/refresh", authHandlers.RefreshTokenWithService())
 			auth.POST("/logout", handlers.Logout())
 			auth.GET("/me", middleware.RequireAuthWithService(authService), handlers.GetCurrentUser())
 		}
@@ -157,6 +158,7 @@ func main() {
 				datasets.POST("/upload", datasetHandlers.UploadDataset())
 				datasets.GET("/user", datasetHandlers.GetUserDatasets())
 				datasets.GET("/project/:project_id", datasetHandlers.GetDatasets())
+				datasets.GET("/:id", datasetHandlers.GetDatasetByID())
 				datasets.DELETE("/:id", datasetHandlers.DeleteDataset())
 			}
 
@@ -166,6 +168,7 @@ func main() {
 			{
 				schemas.POST("", schemaHandlers.CreateSchema())
 				schemas.GET("/dataset/:dataset_id", schemaHandlers.GetSchema())
+				schemas.POST("/infer/:dataset_id", schemaHandlers.InferSchema()) // Schema inference endpoint
 				schemas.PUT("/:schema_id", schemaHandlers.UpdateSchema())
 				schemas.DELETE("/:schema_id", schemaHandlers.DeleteSchema())
 			}
@@ -174,6 +177,7 @@ func main() {
 			data := protected.Group("/data")
 			{
 				data.GET("/dataset/:dataset_id", schemaHandlers.GetDatasetData())
+				data.POST("/dataset/:dataset_id/query", schemaHandlers.QueryDatasetData())
 				data.PUT("/dataset/:dataset_id", schemaHandlers.UpdateDatasetData())
 				data.DELETE("/dataset/:dataset_id/row/:row_index", schemaHandlers.DeleteDatasetData())
 			}

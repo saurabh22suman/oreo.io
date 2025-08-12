@@ -129,21 +129,6 @@ const DashboardPage: React.FC = () => {
                 <p className="text-gray-600 mb-4">
                   Ready to manage your data projects? Get started with creating your first project or explore existing ones.
                 </p>
-                <div className="flex space-x-3">
-                  <button 
-                    className="btn-primary"
-                    onClick={() => setIsCreateModalOpen(true)}
-                  >
-                    Create New Project
-                  </button>
-                  <button 
-                    className="btn-outline"
-                    onClick={loadProjects}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Loading...' : 'Browse Projects'}
-                  </button>
-                </div>
               </div>
             </div>
 

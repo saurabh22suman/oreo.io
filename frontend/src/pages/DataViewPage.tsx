@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Database, Settings } from 'lucide-react';
+import { ArrowLeft, Database, Settings, Sparkles } from 'lucide-react';
 import DataEditor from '../components/DataEditor';
 import SchemaEditor from '../components/SchemaEditor';
 
@@ -39,28 +39,33 @@ const DataViewPage: React.FC = () => {
 
   const loadDataset = async () => {
     try {
-      const token = localStorage.getItem('token');
-      // We need to get the dataset info - for now we'll create a mock response
-      // In a real app, you'd have an endpoint to get dataset by ID
-      const response = await fetch('/api/datasets/user', {
+      console.log('[DEBUG] loadDataset: Starting for dataset ID:', datasetId);
+      
+      const token = localStorage.getItem('accessToken'); // Changed from 'token' to 'accessToken'
+      console.log('[DEBUG] loadDataset: Token exists:', !!token);
+      
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/v1/datasets/${datasetId}`;
+      console.log('[DEBUG] loadDataset: Calling API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log('[DEBUG] loadDataset: Response status:', response.status);
+      
       if (response.ok) {
-        const datasets = await response.json();
-        const foundDataset = datasets.find((d: Dataset) => d.id === datasetId);
-        if (foundDataset) {
-          setDataset(foundDataset);
-        } else {
-          setError('Dataset not found');
-        }
+        const dataset = await response.json();
+        console.log('[DEBUG] loadDataset: Dataset loaded:', dataset);
+        setDataset(dataset);
       } else {
-        throw new Error('Failed to load dataset');
+        const errorText = await response.text();
+        console.error('[ERROR] loadDataset: Failed to load dataset:', response.status, errorText);
+        setError('Failed to load dataset information');
       }
-    } catch (err) {
-      console.error('Error loading dataset:', err);
+    } catch (error) {
+      console.error('[ERROR] loadDataset: Exception:', error);
       setError('Failed to load dataset information');
     } finally {
       setLoading(false);
@@ -69,22 +74,35 @@ const DataViewPage: React.FC = () => {
 
   const loadSchema = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/schemas/dataset/${datasetId}`, {
+      console.log('[DEBUG] loadSchema: Starting for dataset ID:', datasetId);
+      
+      const token = localStorage.getItem('accessToken'); // Changed from 'token' to 'accessToken'
+      console.log('[DEBUG] loadSchema: Token exists:', !!token);
+      
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/v1/schemas/dataset/${datasetId}`;
+      console.log('[DEBUG] loadSchema: Calling API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log('[DEBUG] loadSchema: Response status:', response.status);
+
       if (response.ok) {
         const result = await response.json();
+        console.log('[DEBUG] loadSchema: Schema loaded:', result);
         setSchema(result.schema);
       } else if (response.status !== 404) {
         // 404 is expected if no schema exists yet
-        throw new Error('Failed to load schema');
+        const errorText = await response.text();
+        console.error('[ERROR] loadSchema: Failed to load schema:', response.status, errorText);
+      } else {
+        console.log('[DEBUG] loadSchema: No schema found (404) - this is expected');
       }
     } catch (err) {
-      console.error('Error loading schema:', err);
+      console.error('[ERROR] loadSchema: Exception:', err);
       // Don't set error for schema loading failure
     }
   };
@@ -92,6 +110,79 @@ const DataViewPage: React.FC = () => {
   const handleSchemaSaved = (savedSchema: DatasetSchema) => {
     setSchema(savedSchema);
     setShowSchemaEditor(false);
+  };
+
+  const inferSchema = async () => {
+    try {
+      console.log('[DEBUG] inferSchema: Starting for dataset ID:', datasetId);
+      
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('[ERROR] inferSchema: No token found');
+        return;
+      }
+      
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/v1/schemas/infer/${datasetId}`;
+      console.log('[DEBUG] inferSchema: Calling API:', apiUrl);
+      
+      setLoading(true);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[DEBUG] inferSchema: Response status:', response.status);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DEBUG] inferSchema: Schema inferred:', result);
+        
+        // Transform the inferred schema to match our schema format
+        const inferredSchema: DatasetSchema = {
+          id: '', // Will be set when saved
+          dataset_id: datasetId!,
+          name: result.inferred_schema.name,
+          description: result.inferred_schema.description,
+          fields: result.inferred_schema.fields.map((field: any, index: number) => ({
+            id: '',
+            schema_id: '',
+            name: field.name,
+            display_name: field.display_name,
+            data_type: field.data_type,
+            is_required: field.is_required,
+            is_unique: false,
+            default_value: null,
+            position: index + 1,
+            validation: {
+              min_length: field.constraints?.min_length,
+              max_length: field.constraints?.max_length,
+              min_value: field.constraints?.min,
+              max_value: field.constraints?.max,
+              pattern: field.pattern,
+              format: field.constraints?.format,
+            },
+          })),
+        };
+        
+        // Set the inferred schema and open the editor for review
+        setSchema(inferredSchema);
+        setShowSchemaEditor(true);
+        
+      } else {
+        const errorText = await response.text();
+        console.error('[ERROR] inferSchema: Failed to infer schema:', response.status, errorText);
+        alert('Failed to infer schema. Please try again.');
+      }
+    } catch (err) {
+      console.error('[ERROR] inferSchema: Exception:', err);
+      alert('An error occurred while inferring the schema. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -158,13 +249,33 @@ const DataViewPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex space-x-2">
-                  <button
-                    onClick={() => setShowSchemaEditor(true)}
-                    className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    {schema ? 'Edit Schema' : 'Create Schema'}
-                  </button>
+                  {!schema ? (
+                    <>
+                      <button
+                        onClick={inferSchema}
+                        disabled={loading}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {loading ? 'Inferring...' : 'Infer Schema'}
+                      </button>
+                      <button
+                        onClick={() => setShowSchemaEditor(true)}
+                        className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Create Schema Manually
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setShowSchemaEditor(true)}
+                      className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Edit Schema
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -174,7 +285,13 @@ const DataViewPage: React.FC = () => {
         {/* Main Content */}
         <div className="bg-white shadow rounded-lg">
           <div className="p-6">
-            {datasetId && <DataEditor />}
+            {datasetId && (
+              <DataEditor 
+                onOpenSchemaEditor={() => setShowSchemaEditor(true)}
+                schema={schema}
+                onSchemaChange={setSchema}
+              />
+            )}
           </div>
         </div>
 

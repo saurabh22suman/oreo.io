@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Edit, Trash2, Save, X, Plus, Eye } from 'lucide-react';
+import { Edit, Trash2, Save, X, Eye } from 'lucide-react';
+import SQLQuery from './SQLQuery';
 
 interface SchemaField {
   id: string;
@@ -15,7 +16,7 @@ interface SchemaField {
 }
 
 interface DatasetSchema {
-  id: string;
+  id?: string;
   dataset_id: string;
   name: string;
   description?: string;
@@ -34,24 +35,48 @@ interface DataPageResult {
   total_pages: number;
 }
 
-const DataEditor: React.FC = () => {
+interface DataEditorProps {
+  onOpenSchemaEditor?: () => void;
+  schema?: DatasetSchema | null;
+  onSchemaChange?: (schema: DatasetSchema | null) => void;
+}
+
+const DataEditor: React.FC<DataEditorProps> = ({ onOpenSchemaEditor, schema: propSchema, onSchemaChange }) => {
   const { datasetId } = useParams<{ datasetId: string }>();
-  const [schema, setSchema] = useState<DatasetSchema | null>(null);
+  const [schema, setSchema] = useState<DatasetSchema | null>(propSchema || null);
   const [dataResult, setDataResult] = useState<DataPageResult | null>(null);
+  const [queryResult, setQueryResult] = useState<DataPageResult | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editingData, setEditingData] = useState<DataRow>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [showSchemaEditor, setShowSchemaEditor] = useState(false);
+  const [isQueryMode, setIsQueryMode] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(true); // New: Start in preview mode
+
+  // Maximum rows allowed (backend enforces 1000 limit)
+  const MAX_ROWS = 1000;
+  const PREVIEW_ROWS = 100; // New: Preview mode shows only 100 rows
 
   useEffect(() => {
     if (datasetId) {
       loadSchema();
-      loadData();
+      loadData(); // Load data immediately regardless of schema
     }
-  }, [datasetId, currentPage, pageSize]);
+  }, [datasetId]);
+
+  useEffect(() => {
+    if (propSchema !== undefined) {
+      setSchema(propSchema);
+    }
+  }, [propSchema]);
+
+  useEffect(() => {
+    if (datasetId) {
+      loadData(); // Load data regardless of schema
+    }
+  }, [datasetId, currentPage, pageSize, isPreviewMode]);
 
   const loadSchema = async () => {
     try {
@@ -65,43 +90,125 @@ const DataEditor: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         setSchema(result.schema);
+        onSchemaChange?.(result.schema);
       } else if (response.status === 404) {
         // No schema exists yet, user can create one
         setSchema(null);
+        onSchemaChange?.(null);
       } else {
-        throw new Error('Failed to load schema');
+        // Schema loading failed, but we can still show data without schema
+        console.warn('Failed to load schema, continuing without schema');
+        setSchema(null);
+        onSchemaChange?.(null);
       }
     } catch (err) {
       console.error('Error loading schema:', err);
-      setError('Failed to load schema');
+      // Don't set error state for schema loading failures
+      // We can still show data without schema
+      setSchema(null);
+      onSchemaChange?.(null);
     }
   };
 
   const loadData = async () => {
     try {
+      console.log('[DEBUG] DataEditor loadData: Starting for dataset ID:', datasetId, 'Preview mode:', isPreviewMode);
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `/api/data/dataset/${datasetId}?page=${currentPage}&page_size=${pageSize}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
+      
+      const token = localStorage.getItem('accessToken');
+      console.log('[DEBUG] DataEditor loadData: Token exists:', !!token);
+      
+      // In preview mode, limit to first 100 rows (5 pages of 20 each)
+      let actualPageSize = pageSize;
+      let actualPage = currentPage;
+      let maxRows = MAX_ROWS;
+      
+      if (isPreviewMode) {
+        maxRows = PREVIEW_ROWS;
+        actualPageSize = Math.min(pageSize, 20); // Smaller page size for preview
+        const maxPreviewPage = Math.ceil(PREVIEW_ROWS / actualPageSize);
+        actualPage = Math.min(currentPage, maxPreviewPage);
+      } else {
+        const maxPage = Math.ceil(MAX_ROWS / pageSize);
+        actualPage = Math.min(currentPage, maxPage);
+      }
+      
+      console.log('[DEBUG] DataEditor loadData: Mode calculations - page:', actualPage, 'pageSize:', actualPageSize, 'maxRows:', maxRows);
+      
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/v1/data/dataset/${datasetId}?page=${actualPage}&page_size=${actualPageSize}`;
+      console.log('[DEBUG] DataEditor loadData: Calling API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('[DEBUG] DataEditor loadData: Response status:', response.status);
 
       if (response.ok) {
         const result = await response.json();
+        console.log('[DEBUG] DataEditor loadData: Data loaded:', result);
+        
+        // Apply limits based on mode
+        if (isPreviewMode) {
+          // In preview mode, limit to PREVIEW_ROWS
+          if (result.total > PREVIEW_ROWS) {
+            result.total = PREVIEW_ROWS;
+            result.total_pages = Math.ceil(PREVIEW_ROWS / actualPageSize);
+          }
+        } else {
+          // In full mode, limit to MAX_ROWS
+          if (result.total > MAX_ROWS) {
+            result.total = MAX_ROWS;
+            result.total_pages = Math.ceil(MAX_ROWS / pageSize);
+          }
+        }
+        
         setDataResult(result);
+        setIsQueryMode(false);
+        setError('');
+      } else if (response.status === 404) {
+        console.log('[DEBUG] DataEditor loadData: No data exists yet (404)');
+        // No data exists yet, show empty result
+        setDataResult({ data: [], total: 0, page: 1, page_size: actualPageSize, total_pages: 0 });
+        setIsQueryMode(false);
+        setError('');
       } else {
-        throw new Error('Failed to load data');
+        const errorText = await response.text();
+        console.error('[ERROR] DataEditor loadData: Failed to load data:', response.status, errorText);
+        setError('Failed to load data');
       }
     } catch (err) {
-      console.error('Error loading data:', err);
+      console.error('[ERROR] DataEditor loadData: Exception:', err);
       setError('Failed to load data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQueryResult = (result: DataPageResult) => {
+    setQueryResult(result);
+    setIsQueryMode(true);
+    setError(''); // Clear any previous errors
+  };
+
+  const clearQuery = () => {
+    setQueryResult(null);
+    setIsQueryMode(false);
+    loadData();
+  };
+
+  const toggleToFullData = () => {
+    setIsPreviewMode(false);
+    setCurrentPage(1); // Reset to first page
+    setPageSize(50); // Use normal page size
+  };
+
+  const toggleToPreview = () => {
+    setIsPreviewMode(true);
+    setCurrentPage(1); // Reset to first page
+    setPageSize(20); // Use smaller page size for preview
   };
 
   const handleEdit = (rowIndex: number, rowData: DataRow) => {
@@ -234,42 +341,76 @@ const DataEditor: React.FC = () => {
     );
   }
 
-  if (!schema) {
-    return (
-      <div className="text-center py-8">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">No Schema Defined</h3>
-        <p className="text-gray-600 mb-6">
-          This dataset doesn't have a schema yet. You need to define one to view and edit the data.
-        </p>
-        <button
-          onClick={() => setShowSchemaEditor(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Create Schema
-        </button>
-      </div>
-    );
-  }
-
-  const { data, total, page, total_pages } = dataResult || { data: [], total: 0, page: 1, total_pages: 1 };
+  // Remove the early return for missing schema - we can show data without schema
+  const displayResult = isQueryMode ? queryResult : dataResult;
+  const { data, total, total_pages } = displayResult || { data: [], total: 0, total_pages: 1 };
 
   return (
     <div className="space-y-6">
+      {/* SQL Query Interface */}
+      {datasetId && (
+        <SQLQuery 
+          datasetId={datasetId} 
+          onQueryResult={handleQueryResult}
+        />
+      )}
+
+      {/* Query Results Header */}
+      {isQueryMode && queryResult && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-medium text-blue-900">Search Results</h3>
+              <p className="text-blue-700">Found {queryResult.total} matching rows</p>
+            </div>
+            <button
+              onClick={clearQuery}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Clear Search
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">{schema.name}</h2>
-          {schema.description && (
+          <h2 className="text-2xl font-bold text-gray-900">{schema?.name || 'Dataset Viewer'}</h2>
+          {schema?.description && (
             <p className="text-gray-600 mt-1">{schema.description}</p>
           )}
         </div>
         <div className="flex space-x-2">
+          {/* View Mode Toggle Buttons */}
+          {isPreviewMode ? (
+            <button
+              onClick={toggleToFullData}
+              className="flex items-center px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Show Full Data
+            </button>
+          ) : (
+            <button
+              onClick={toggleToPreview}
+              className="flex items-center px-3 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Show Preview (100 rows)
+            </button>
+          )}
+          
           <button
-            onClick={() => setShowSchemaEditor(true)}
-            className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            onClick={() => onOpenSchemaEditor?.()}
+            className={`flex items-center px-3 py-2 rounded ${
+              schema 
+                ? "bg-gray-100 text-gray-700 hover:bg-gray-200" 
+                : "bg-purple-600 text-white hover:bg-purple-700"
+            }`}
           >
             <Eye className="w-4 h-4 mr-2" />
-            View Schema
+            {schema ? "View Schema" : "Create Schema"}
           </button>
           <button
             onClick={loadData}
@@ -286,17 +427,32 @@ const DataEditor: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {schema.fields
-                  .sort((a, b) => a.position - b.position)
-                  .map((field) => (
-                    <th
-                      key={field.id}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {field.display_name}
-                      {field.is_required && <span className="text-red-500 ml-1">*</span>}
-                    </th>
-                  ))}
+                {schema ? (
+                  // When schema exists, use schema fields
+                  schema.fields
+                    .sort((a, b) => a.position - b.position)
+                    .map((field) => (
+                      <th
+                        key={field.id}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        {field.display_name}
+                        {field.is_required && <span className="text-red-500 ml-1">*</span>}
+                      </th>
+                    ))
+                ) : (
+                  // When no schema, use column names from data
+                  data.length > 0 && Object.keys(data[0])
+                    .filter(key => key !== '_row_index') // Exclude internal row index
+                    .map((columnName) => (
+                      <th
+                        key={columnName}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      >
+                        {columnName}
+                      </th>
+                    ))
+                )}
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -305,17 +461,29 @@ const DataEditor: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {data.map((row, rowIndex) => (
                 <tr key={rowIndex} className="hover:bg-gray-50">
-                  {schema.fields
-                    .sort((a, b) => a.position - b.position)
-                    .map((field) => (
-                      <td key={field.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {editingRow === rowIndex ? (
-                          renderFieldInput(field, editingData[field.name])
-                        ) : (
-                          renderCellValue(field, row[field.name])
-                        )}
-                      </td>
-                    ))}
+                  {schema ? (
+                    // When schema exists, use schema fields
+                    schema.fields
+                      .sort((a, b) => a.position - b.position)
+                      .map((field) => (
+                        <td key={field.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {editingRow === rowIndex ? (
+                            renderFieldInput(field, editingData[field.name])
+                          ) : (
+                            renderCellValue(field, row[field.name])
+                          )}
+                        </td>
+                      ))
+                  ) : (
+                    // When no schema, display all columns
+                    Object.keys(row)
+                      .filter(key => key !== '_row_index') // Exclude internal row index
+                      .map((columnName) => (
+                        <td key={columnName} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {row[columnName]?.toString() || ''}
+                        </td>
+                      ))
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {editingRow === rowIndex ? (
                       <div className="flex justify-end space-x-2">
@@ -382,6 +550,12 @@ const DataEditor: React.FC = () => {
                     {Math.min(currentPage * pageSize, total)}
                   </span>{' '}
                   of <span className="font-medium">{total}</span> results
+                  {isPreviewMode && (
+                    <span className="text-blue-600 ml-2">(Preview mode - showing first {PREVIEW_ROWS} rows)</span>
+                  )}
+                  {!isQueryMode && !isPreviewMode && total >= MAX_ROWS && (
+                    <span className="text-orange-600 ml-2">(Limited to {MAX_ROWS} rows)</span>
+                  )}
                 </p>
               </div>
               <div>
@@ -397,8 +571,11 @@ const DataEditor: React.FC = () => {
                     {currentPage} / {total_pages}
                   </span>
                   <button
-                    onClick={() => setCurrentPage(Math.min(total_pages, currentPage + 1))}
-                    disabled={currentPage === total_pages}
+                    onClick={() => {
+                      const maxPage = isQueryMode ? total_pages : Math.min(total_pages, Math.ceil(MAX_ROWS / pageSize));
+                      setCurrentPage(Math.min(maxPage, currentPage + 1));
+                    }}
+                    disabled={currentPage === total_pages || (!isQueryMode && currentPage >= Math.ceil(MAX_ROWS / pageSize))}
                     className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Next

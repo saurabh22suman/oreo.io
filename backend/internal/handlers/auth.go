@@ -105,10 +105,22 @@ func RefreshToken() gin.HandlerFunc {
 // Logout handles user logout
 func Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// TODO: Implement user logout
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"message": "User logout endpoint - coming soon",
-			"status":  "not_implemented",
+		// For JWT-based auth, logout is primarily handled client-side
+		// by removing the token from localStorage/sessionStorage
+		// In the future, we could implement token blacklisting here
+		
+		// Get user from context (if available)
+		user, exists := c.Get("user")
+		if exists {
+			if userModel, ok := user.(models.User); ok {
+				log.Printf("User %s (%s) logged out", userModel.Email, userModel.ID)
+			}
+		}
+		
+		// Return success response
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Logged out successfully",
+			"status":  "success",
 		})
 	}
 }
