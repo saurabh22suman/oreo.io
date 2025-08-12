@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Integration Test Runner for Oreo.io
-# This script runs comprehensive integration tests against the Docker development environment
+# This script runs comprehensive integration tests for all API endpoints
 
 set -e
 
@@ -28,6 +28,48 @@ print_error() {
 print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
+
+# Default values
+TEST_ENV="test"
+COMPOSE_FILE="docker-compose.test.yml"
+BACKEND_URL="http://localhost:8080"
+TIMEOUT=60
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --env)
+      TEST_ENV="$2"
+      shift 2
+      ;;
+    --compose-file)
+      COMPOSE_FILE="$2"
+      shift 2
+      ;;
+    --backend-url)
+      BACKEND_URL="$2"
+      shift 2
+      ;;
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --help)
+      echo "Usage: $0 [OPTIONS]"
+      echo "Options:"
+      echo "  --env ENV              Test environment (default: test)"
+      echo "  --compose-file FILE    Docker compose file (default: docker-compose.test.yml)"
+      echo "  --backend-url URL      Backend URL (default: http://localhost:8080)"
+      echo "  --timeout SECONDS      Timeout for services (default: 60)"
+      echo "  --help                 Show this help message"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+  esac
+done
 
 # Function to check if Docker services are running
 check_services() {

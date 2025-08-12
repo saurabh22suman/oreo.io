@@ -1,32 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { projectService } from '@/services/projectService';
 import { datasetService } from '@/services/datasetService';
 import { Project, CreateProjectRequest } from '@/types/project';
 import { Dataset } from '@/types/dataset';
 import UploadDatasetModal from '@/components/UploadDatasetModal';
 import CreateProjectModal from '@/components/CreateProjectModal';
-
-interface ProjectMember {
-  id: string;
-  user_id: string;
-  project_id: string;
-  role: 'admin' | 'editor' | 'reviewer' | 'viewer';
-  username: string;
-  email: string;
-  invited_at: string;
-  status: 'active' | 'pending' | 'inactive';
-}
+import { Eye, Trash2 } from 'lucide-react';
 
 const ProjectManagementPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [project, setProject] = useState<Project | null>(null);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [members, setMembers] = useState<ProjectMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'datasets' | 'members' | 'settings'>('overview');
@@ -266,7 +253,7 @@ const ProjectManagementPage: React.FC = () => {
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h3 className="text-sm font-medium text-gray-500">Members</h3>
-                    <p className="text-2xl font-bold text-gray-900">{members.length}</p>
+                    <p className="text-2xl font-bold text-gray-900">0</p>
                   </div>
                 </div>
               </div>
@@ -356,12 +343,24 @@ const ProjectManagementPage: React.FC = () => {
                             {new Date(dataset.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button 
-                              onClick={() => handleDeleteDataset(dataset.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => navigate(`/dataset/${dataset.id}/view`)}
+                                className="text-blue-600 hover:text-blue-900 flex items-center"
+                                title="View and edit data"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View Data
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteDataset(dataset.id)}
+                                className="text-red-600 hover:text-red-900 flex items-center"
+                                title="Delete dataset"
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
